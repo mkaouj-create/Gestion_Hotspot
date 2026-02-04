@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Users as UsersIcon, Ticket, Wallet, ShoppingCart, Loader2, RefreshCcw, TrendingUp, ArrowUpRight } from 'lucide-react';
+import { Users as UsersIcon, Ticket, Wallet, ShoppingCart, Loader2, RefreshCcw, TrendingUp, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
 import { UserRole } from '../types';
@@ -10,6 +10,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ revenue: 0, sold: 0, stock: 0, users: 0 });
   const [recentSales, setRecentSales] = useState<any[]>([]);
+  const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null);
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -20,6 +21,7 @@ const Dashboard: React.FC = () => {
       const { data: profile } = await db.from('users').select('role, tenant_id').eq('id', user.id).maybeSingle();
       if (!profile) return;
 
+      setCurrentUserRole(profile.role as UserRole);
       const isAdmin = profile.role === UserRole.ADMIN_GLOBAL;
       const tId = profile.tenant_id;
       
@@ -52,20 +54,34 @@ const Dashboard: React.FC = () => {
 
   if (loading) return <div className="h-[60vh] flex flex-col items-center justify-center"><Loader2 className="w-12 h-12 text-brand-600 animate-spin mb-4 opacity-20" /><p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Synchronisation Cloud...</p></div>;
 
+  const isAdminGlobal = currentUserRole === UserRole.ADMIN_GLOBAL;
+
   return (
     <div className="space-y-12 animate-in fade-in duration-700">
       <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-        <div><h1 className="text-4xl font-black text-slate-900 tracking-tight italic leading-none mb-3">Tableau de Bord</h1><p className="text-slate-400 font-medium text-lg">Résumé de l'activité de votre infrastructure WiFi.</p></div>
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            {isAdminGlobal && <span className="bg-brand-100 text-brand-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 w-fit"><ShieldCheck className="w-3 h-3" /> Mode Superviseur</span>}
+          </div>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight italic leading-none mb-3">
+            {isAdminGlobal ? 'Supervision SaaS' : 'Tableau de Bord'}
+          </h1>
+          <p className="text-slate-400 font-medium text-lg">
+            {isAdminGlobal ? 'Vue globale de la performance de toutes les agences.' : 'Résumé de l\'activité de votre infrastructure WiFi.'}
+          </p>
+        </div>
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/sales')} className="bg-brand-600 hover:bg-brand-700 text-white px-10 py-5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 shadow-2xl shadow-brand-100 transition-all active:scale-95"><ShoppingCart className="w-5 h-5" /> Nouvelle Vente</button>
+          {!isAdminGlobal && (
+            <button onClick={() => navigate('/sales')} className="bg-brand-600 hover:bg-brand-700 text-white px-10 py-5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 shadow-2xl shadow-brand-100 transition-all active:scale-95"><ShoppingCart className="w-5 h-5" /> Nouvelle Vente</button>
+          )}
           <button onClick={fetchDashboardData} className="p-5 bg-white border border-slate-100 rounded-2xl text-slate-300 hover:text-brand-600 transition-all shadow-sm active:rotate-180 duration-500"><RefreshCcw className="w-6 h-6" /></button>
         </div>
       </header>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Chiffre d'Affaires" value={`${stats.revenue.toLocaleString()}`} unit="GNF" icon={<Wallet />} color="bg-brand-600" />
+        <StatCard label={isAdminGlobal ? "Revenu Global" : "Chiffre d'Affaires"} value={`${stats.revenue.toLocaleString()}`} unit="GNF" icon={<Wallet />} color="bg-brand-600" />
         <StatCard label="Tickets Vendus" value={stats.sold} unit="Ventes" icon={<TrendingUp />} color="bg-emerald-600" />
         <StatCard label="Stock Disponible" value={stats.stock} unit="Vouchers" icon={<Ticket />} color="bg-indigo-600" />
-        <StatCard label="Utilisateurs" value={stats.users} unit="Membres" icon={<UsersIcon />} color="bg-slate-900" />
+        <StatCard label={isAdminGlobal ? "Utilisateurs Totaux" : "Utilisateurs"} value={stats.users} unit="Membres" icon={<UsersIcon />} color="bg-slate-900" />
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-10 items-start">
         <div className="xl:col-span-2 bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">

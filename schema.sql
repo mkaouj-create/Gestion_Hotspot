@@ -1,9 +1,10 @@
 
 -- INITIALISATION DE LA BASE DE DONNÉES GESTION_HOTSPOT
+-- SCRIPT CORRIGÉ : Compatible avec une base de données existante (Idempotent)
 
--- 1. Tables de base
+-- 1. Tables de base (Utilisation de IF NOT EXISTS)
 -- Table des Tenants (Agences)
-create table public.tenants (
+create table if not exists public.tenants (
   id uuid default gen_random_uuid() primary key,
   name text not null,
   subscription_status text default 'EN_ATTENTE', -- EN_ATTENTE, ACTIF, SUSPENDU
@@ -12,7 +13,7 @@ create table public.tenants (
 );
 
 -- Table des Utilisateurs (Extension de auth.users)
-create table public.users (
+create table if not exists public.users (
   id uuid references auth.users on delete cascade primary key,
   full_name text,
   email text,
@@ -24,7 +25,7 @@ create table public.users (
 );
 
 -- Table des Profils de Tickets (Forfaits)
-create table public.ticket_profiles (
+create table if not exists public.ticket_profiles (
   id uuid default gen_random_uuid() primary key,
   tenant_id uuid references public.tenants(id) on delete cascade not null,
   name text not null,
@@ -33,7 +34,7 @@ create table public.ticket_profiles (
 );
 
 -- Table des Tickets
-create table public.tickets (
+create table if not exists public.tickets (
   id uuid default gen_random_uuid() primary key,
   tenant_id uuid references public.tenants(id) on delete cascade not null,
   profile_id uuid references public.ticket_profiles(id) not null,
@@ -47,7 +48,7 @@ create table public.tickets (
 );
 
 -- Table Historique des Ventes
-create table public.sales_history (
+create table if not exists public.sales_history (
   id uuid default gen_random_uuid() primary key,
   tenant_id uuid references public.tenants(id) not null,
   seller_id uuid references public.users(id),
@@ -58,7 +59,7 @@ create table public.sales_history (
 );
 
 -- Table Zones WiFi
-create table public.zones (
+create table if not exists public.zones (
   id uuid default gen_random_uuid() primary key,
   tenant_id uuid references public.tenants(id) on delete cascade not null,
   name text not null,
@@ -68,7 +69,7 @@ create table public.zones (
 );
 
 -- Table Paiements (Rechargement Revendeurs)
-create table public.payments (
+create table if not exists public.payments (
   id uuid default gen_random_uuid() primary key,
   tenant_id uuid references public.tenants(id) not null,
   reseller_id uuid references public.users(id),
@@ -80,7 +81,7 @@ create table public.payments (
 );
 
 -- 2. Sécurité (Row Level Security - RLS)
--- Activez RLS sur toutes les tables
+-- Activez RLS sur toutes les tables (Idempotent par nature)
 alter table public.tenants enable row level security;
 alter table public.users enable row level security;
 alter table public.ticket_profiles enable row level security;
@@ -89,8 +90,23 @@ alter table public.sales_history enable row level security;
 alter table public.zones enable row level security;
 alter table public.payments enable row level security;
 
--- Création des politiques simplifiées (Pour le démarrage)
--- Note: En production, il faudrait affiner ces politiques pour isoler strictement les tenants.
+-- Création des politiques simplifiées
+-- On SUPPRIME d'abord les anciennes pour éviter l'erreur "Policy already exists"
+drop policy if exists "Enable read access for authenticated users" on public.tenants;
+drop policy if exists "Enable read access for authenticated users" on public.users;
+drop policy if exists "Enable read access for authenticated users" on public.ticket_profiles;
+drop policy if exists "Enable read access for authenticated users" on public.tickets;
+drop policy if exists "Enable read access for authenticated users" on public.sales_history;
+drop policy if exists "Enable read access for authenticated users" on public.zones;
+drop policy if exists "Enable read access for authenticated users" on public.payments;
+
+drop policy if exists "Enable write access for authenticated users" on public.tenants;
+drop policy if exists "Enable write access for authenticated users" on public.users;
+drop policy if exists "Enable write access for authenticated users" on public.ticket_profiles;
+drop policy if exists "Enable write access for authenticated users" on public.tickets;
+drop policy if exists "Enable write access for authenticated users" on public.sales_history;
+drop policy if exists "Enable write access for authenticated users" on public.zones;
+drop policy if exists "Enable write access for authenticated users" on public.payments;
 
 -- Politique: Tout le monde peut lire (authentifié)
 create policy "Enable read access for authenticated users" on public.tenants for select to authenticated using (true);
@@ -128,26 +144,42 @@ begin
 end;
 $$ language plpgsql security definer;
 
--- Trigger pour l'inscription
+-- Trigger pour l'inscription (Suppression avant recréation pour éviter erreur)
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
 -- Fonction RPC: Créer une nouvelle agence (Utilisée dans CompleteSetup.tsx)
+-- MISE A JOUR: La première agence devient ADMIN_GLOBAL
 create or replace function create_new_agency(p_agency_name text)
 returns void as $$
 declare
   new_tenant_id uuid;
+  is_first_agency boolean;
+  user_role text;
+  sub_status text;
 begin
+  -- Vérifier s'il existe déjà des agences dans la table tenants
+  select not exists(select 1 from public.tenants) into is_first_agency;
+
+  if is_first_agency then
+    user_role := 'ADMIN_GLOBAL';
+    sub_status := 'ACTIF'; -- Le super admin est actif par défaut
+  else
+    user_role := 'GESTIONNAIRE_WIFI_ZONE';
+    sub_status := 'EN_ATTENTE';
+  end if;
+
   -- 1. Créer le tenant
   insert into public.tenants (name, subscription_status)
-  values (p_agency_name, 'EN_ATTENTE')
+  values (p_agency_name, sub_status)
   returning id into new_tenant_id;
 
-  -- 2. Mettre à jour l'utilisateur courant pour qu'il soit le gestionnaire
+  -- 2. Mettre à jour l'utilisateur courant
   update public.users
   set tenant_id = new_tenant_id,
-      role = 'GESTIONNAIRE_WIFI_ZONE'
+      role = user_role
   where id = auth.uid();
 end;
 $$ language plpgsql security definer;
@@ -176,9 +208,3 @@ begin
   -- car Postgres standard ne peut pas écrire dans auth.users directement sans permissions superuser.
 end;
 $$ language plpgsql security definer;
-
--- CRÉATION DE L'ADMINISTRATEUR GLOBAL (Optionnel pour le démarrage)
--- Remplacez 'VOTRE_EMAIL_ADMIN' par l'email que vous utiliserez pour vous connecter la première fois
--- Vous devrez modifier manuellement le rôle en 'ADMIN_GLOBAL' dans la table public.users après votre première connexion
--- si vous ne le faites pas via ce script.
-
