@@ -22,21 +22,27 @@ const Dashboard: React.FC = () => {
 
       const isAdmin = profile.role === UserRole.ADMIN_GLOBAL;
       const tId = profile.tenant_id;
-      const getQuery = (table: string) => { let q = db.from(table).select('*'); if (!isAdmin && tId) q = q.eq('tenant_id', tId); return q; };
+      
+      // Helper pour appliquer le filtre tenant si nécessaire
+      const applyTenantFilter = (query: any) => {
+        if (!isAdmin && tId) return query.eq('tenant_id', tId);
+        return query;
+      };
 
-      const [stockRes, soldRes, revRes, userRes, salesRes]: any[] = await Promise.all([
-        getQuery('tickets').eq('status', 'NEUF'),
-        getQuery('tickets').eq('status', 'VENDU'),
-        getQuery('sales_history'),
-        getQuery('users'),
-        getQuery('sales_history').order('sold_at', { ascending: false }).limit(6)
+      // Requêtes optimisées : on utilise { count: 'exact', head: true } pour ne pas télécharger les données inutilement
+      const [stockRes, soldRes, revRes, userRes, salesRes] = await Promise.all([
+        applyTenantFilter(db.from('tickets').select('*', { count: 'exact', head: true })).eq('status', 'NEUF'),
+        applyTenantFilter(db.from('tickets').select('*', { count: 'exact', head: true })).eq('status', 'VENDU'),
+        applyTenantFilter(db.from('sales_history').select('amount_paid')), // On a besoin des montants pour la somme
+        applyTenantFilter(db.from('users').select('*', { count: 'exact', head: true })),
+        applyTenantFilter(db.from('sales_history').select('*, tickets(username, ticket_profiles(name))')).order('sold_at', { ascending: false }).limit(6)
       ]);
 
       setStats({
         revenue: (revRes.data || []).reduce((acc: number, curr: any) => acc + Number(curr.amount_paid), 0) || 0,
-        sold: (soldRes.data || []).length || 0,
-        stock: (stockRes.data || []).length || 0,
-        users: (userRes.data || []).length || 0
+        sold: soldRes.count || 0,
+        stock: stockRes.count || 0,
+        users: userRes.count || 0
       });
       setRecentSales(salesRes.data || []);
     } catch (err) { console.error(err); } finally { setLoading(false); }
@@ -44,7 +50,7 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => { fetchDashboardData(); }, [fetchDashboardData]);
 
-  if (loading) return <div className="h-[60vh] flex flex-col items-center justify-center"><Loader2 className="w-12 h-12 text-brand-600 animate-spin mb-4 opacity-20" /><p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Calcul des revenus...</p></div>;
+  if (loading) return <div className="h-[60vh] flex flex-col items-center justify-center"><Loader2 className="w-12 h-12 text-brand-600 animate-spin mb-4 opacity-20" /><p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Synchronisation Cloud...</p></div>;
 
   return (
     <div className="space-y-12 animate-in fade-in duration-700">

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, ChevronLeft, Zap, ShieldCheck, Globe, AlertCircle, Loader2, WifiOff, RefreshCcw } from 'lucide-react';
+import { Mail, Lock, ArrowRight, ChevronLeft, Zap, ShieldCheck, Globe, AlertCircle, Loader2, WifiOff } from 'lucide-react';
 import { db } from '../services/db';
 
 const Login: React.FC = () => {
@@ -24,13 +24,6 @@ const Login: React.FC = () => {
     } catch (err: any) { setError(err.message || "Erreur lors de la connexion."); } finally { setIsLoading(false); }
   };
 
-  const handleResetDemo = () => {
-    if (confirm("Cela va effacer toutes les données locales et restaurer les utilisateurs de démo par défaut. Continuer ?")) {
-        localStorage.removeItem('hotspot_pro_local_db');
-        window.location.reload();
-    }
-  };
-
   return (
     <div className="min-h-screen bg-white flex font-sans text-slate-900">
       <div className="hidden lg:flex w-1/2 bg-brand-600 relative overflow-hidden flex-col justify-between p-16">
@@ -47,9 +40,6 @@ const Login: React.FC = () => {
             <div className="space-y-2"><div className="flex justify-between items-center px-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Mot de passe</label></div><div className="relative group"><Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-brand-600 transition-colors" /><input type="password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-14 pr-6 py-5 rounded-2xl border border-slate-100 bg-slate-50/50 focus:bg-white focus:ring-4 focus:ring-brand-50 outline-none font-bold text-slate-600 placeholder:text-slate-300 transition-all" /></div></div>
             <div className="pt-4"><button type="submit" disabled={isLoading} className={`w-full py-5 bg-[#1e293b] hover:bg-black text-white rounded-[1.5rem] font-bold text-xs tracking-[0.2em] uppercase transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] ${isLoading ? 'opacity-80 cursor-wait' : ''}`}>{isLoading ? (<div className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />CONNEXION...</div>) : (<>ACCÉDER AU DASHBOARD<ArrowRight className="w-4 h-4" /></>)}</button></div>
           </form>
-          <div className="mt-8 flex justify-center">
-             <button onClick={handleResetDemo} className="flex items-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-widest hover:text-red-500 transition-colors p-2"><RefreshCcw className="w-3 h-3" /> Réinitialiser Données Démo</button>
-          </div>
           <div className="mt-4 text-center"><p className="text-sm font-medium text-slate-400">Pas encore de compte ? <Link to="/register-agency" className="text-brand-600 font-black uppercase text-[10px] tracking-widest hover:underline ml-1">Créer une agence</Link></p></div>
           <div className="mt-8 pt-8 border-t border-slate-50 flex items-center justify-center gap-6 opacity-40"><ShieldCheck className="w-5 h-5 text-slate-300" /><span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Connexion Sécurisée</span></div>
         </div>

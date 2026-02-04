@@ -26,7 +26,7 @@ const PendingApproval = lazy(() => import('./pages/PendingApproval'));
 const GlobalLoader = () => (
   <div className="h-screen w-full flex flex-col items-center justify-center bg-[#f8fafc]">
     <div className="relative"><div className="w-16 h-16 border-4 border-brand-100 border-t-brand-600 rounded-full animate-spin"></div></div>
-    <p className="mt-6 text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Chargement Local...</p>
+    <p className="mt-6 text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Chargement Cloud...</p>
   </div>
 );
 

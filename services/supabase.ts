@@ -1,3 +1,1 @@
-
-// [À SUPPRIMER]
-// Ce fichier n'est plus utilisé. L'application utilise désormais services/db.ts pour la gestion des données locales.
+// Fichier obsolète. Le client Supabase est initialisé dans services/db.ts.
