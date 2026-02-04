@@ -151,7 +151,7 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 -- Fonction RPC: Créer une nouvelle agence (Utilisée dans CompleteSetup.tsx)
--- MISE A JOUR: La première agence devient ADMIN_GLOBAL
+-- MISE A JOUR: Retour à la logique de validation manuelle par l'ADMIN_GLOBAL
 create or replace function create_new_agency(p_agency_name text)
 returns void as $$
 declare
@@ -159,21 +159,26 @@ declare
   is_first_agency boolean;
   user_role text;
   sub_status text;
+  sub_end_date timestamptz;
 begin
   -- Vérifier s'il existe déjà des agences dans la table tenants
   select not exists(select 1 from public.tenants) into is_first_agency;
 
   if is_first_agency then
+    -- Le tout premier utilisateur est ADMIN_GLOBAL (pas d'expiration)
     user_role := 'ADMIN_GLOBAL';
-    sub_status := 'ACTIF'; -- Le super admin est actif par défaut
+    sub_status := 'ACTIF';
+    sub_end_date := null; 
   else
+    -- Les suivants sont des gestionnaires et doivent être validés par l'ADMIN_GLOBAL
     user_role := 'GESTIONNAIRE_WIFI_ZONE';
-    sub_status := 'EN_ATTENTE';
+    sub_status := 'EN_ATTENTE'; -- Statut par défaut
+    sub_end_date := null; -- Sera défini lors de l'activation
   end if;
 
   -- 1. Créer le tenant
-  insert into public.tenants (name, subscription_status)
-  values (p_agency_name, sub_status)
+  insert into public.tenants (name, subscription_status, subscription_end_at)
+  values (p_agency_name, sub_status, sub_end_date)
   returning id into new_tenant_id;
 
   -- 2. Mettre à jour l'utilisateur courant
