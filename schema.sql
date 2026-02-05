@@ -80,6 +80,23 @@ create table if not exists public.payments (
   created_at timestamptz default now()
 );
 
+-- NOUVELLE TABLE : Configuration Globale SaaS
+create table if not exists public.saas_settings (
+  id uuid default gen_random_uuid() primary key,
+  monthly_subscription_price numeric default 150000, -- Prix par défaut en GNF
+  trial_period_days integer default 30,
+  support_phone_number text default '224625976411',
+  currency text default 'GNF',
+  is_maintenance_mode boolean default false,
+  updated_at timestamptz default now()
+);
+
+-- Initialisation de la config SaaS si vide
+insert into public.saas_settings (monthly_subscription_price)
+select 150000
+where not exists (select 1 from public.saas_settings);
+
+
 -- 2. Sécurité (Row Level Security - RLS)
 -- Activez RLS sur toutes les tables (Idempotent par nature)
 alter table public.tenants enable row level security;
@@ -89,6 +106,7 @@ alter table public.tickets enable row level security;
 alter table public.sales_history enable row level security;
 alter table public.zones enable row level security;
 alter table public.payments enable row level security;
+alter table public.saas_settings enable row level security;
 
 -- Création des politiques simplifiées
 -- On SUPPRIME d'abord les anciennes pour éviter l'erreur "Policy already exists"
@@ -99,6 +117,7 @@ drop policy if exists "Enable read access for authenticated users" on public.tic
 drop policy if exists "Enable read access for authenticated users" on public.sales_history;
 drop policy if exists "Enable read access for authenticated users" on public.zones;
 drop policy if exists "Enable read access for authenticated users" on public.payments;
+drop policy if exists "Enable read access for authenticated users" on public.saas_settings;
 
 drop policy if exists "Enable write access for authenticated users" on public.tenants;
 drop policy if exists "Enable write access for authenticated users" on public.users;
@@ -107,6 +126,8 @@ drop policy if exists "Enable write access for authenticated users" on public.ti
 drop policy if exists "Enable write access for authenticated users" on public.sales_history;
 drop policy if exists "Enable write access for authenticated users" on public.zones;
 drop policy if exists "Enable write access for authenticated users" on public.payments;
+drop policy if exists "Enable write access for authenticated users" on public.saas_settings;
+
 
 -- Politique: Tout le monde peut lire (authentifié)
 create policy "Enable read access for authenticated users" on public.tenants for select to authenticated using (true);
@@ -116,6 +137,7 @@ create policy "Enable read access for authenticated users" on public.tickets for
 create policy "Enable read access for authenticated users" on public.sales_history for select to authenticated using (true);
 create policy "Enable read access for authenticated users" on public.zones for select to authenticated using (true);
 create policy "Enable read access for authenticated users" on public.payments for select to authenticated using (true);
+create policy "Enable read access for authenticated users" on public.saas_settings for select to authenticated using (true);
 
 -- Politique: Insert/Update/Delete pour les utilisateurs authentifiés
 create policy "Enable write access for authenticated users" on public.tenants for all to authenticated using (true);
@@ -125,6 +147,7 @@ create policy "Enable write access for authenticated users" on public.tickets fo
 create policy "Enable write access for authenticated users" on public.sales_history for all to authenticated using (true);
 create policy "Enable write access for authenticated users" on public.zones for all to authenticated using (true);
 create policy "Enable write access for authenticated users" on public.payments for all to authenticated using (true);
+create policy "Enable write access for authenticated users" on public.saas_settings for all to authenticated using (true);
 
 
 -- 3. Fonctions et Triggers
