@@ -22,6 +22,7 @@ const Subscriptions = lazy(() => import('./pages/Subscriptions'));
 const Zones = lazy(() => import('./pages/Zones'));
 const Profiles = lazy(() => import('./pages/Profiles'));
 const PendingApproval = lazy(() => import('./pages/PendingApproval'));
+const Maintenance = lazy(() => import('./pages/Maintenance'));
 
 const GlobalLoader = () => (
   <div className="h-screen w-full flex flex-col items-center justify-center bg-[#f8fafc]">
@@ -56,10 +57,18 @@ const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [authState, setAuthState] = useState<{ hasTenant: boolean; isPending: boolean; isAdminGlobal: boolean; }>({ hasTenant: false, isPending: false, isAdminGlobal: false });
+  const [isMaintenance, setIsMaintenance] = useState(false);
 
   const syncProfile = async (userId: string) => {
     try {
+      // 1. Vérifier le mode maintenance global
+      const { data: config } = await db.from('saas_settings').select('is_maintenance_mode').maybeSingle();
+      const maintenanceActive = config?.is_maintenance_mode || false;
+      setIsMaintenance(maintenanceActive);
+
+      // 2. Récupérer le profil utilisateur
       const { data } = await db.from('users').select('*').eq('id', userId).maybeSingle();
+      
       if (data) {
         let subStatus = 'ACTIF';
         if (data.tenant_id) {
@@ -78,9 +87,8 @@ const App: React.FC = () => {
       if (user) syncProfile(user.id); else setLoading(false);
     });
 
-    // Listen for auth changes (Login, Logout, Updates)
+    // Listen for auth changes
     const { data: { subscription } } = db.auth.onAuthStateChange((event, session) => {
-        console.log("Auth Event:", event);
         if (event === 'SIGNED_OUT') {
             setSession(null);
             setAuthState({ hasTenant: false, isPending: false, isAdminGlobal: false });
@@ -95,6 +103,12 @@ const App: React.FC = () => {
   }, []);
 
   if (loading) return <GlobalLoader />;
+
+  // LOGIQUE DE BLOCAGE MAINTENANCE
+  // Si maintenance active ET utilisateur connecté ET n'est pas Admin Global => Blocage
+  if (session && isMaintenance && !authState.isAdminGlobal) {
+    return <Maintenance />;
+  }
 
   return (
     <HashRouter>
