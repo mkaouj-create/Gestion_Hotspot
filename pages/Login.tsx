@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, ChevronLeft, Zap, ShieldCheck, Globe, AlertCircle, Loader2, WifiOff } from 'lucide-react';
+import { Mail, Lock, ArrowRight, ChevronLeft, Zap, ShieldCheck, AlertCircle, Loader2, WifiOff } from 'lucide-react';
 import { db } from '../services/db';
 
 const Login: React.FC = () => {
@@ -25,23 +25,79 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white flex font-sans text-slate-900">
-      <div className="hidden lg:flex w-1/2 bg-brand-600 relative overflow-hidden flex-col justify-between p-16">
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none"><div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-white/10 rounded-full blur-3xl animate-pulse"></div><div className="absolute bottom-[-5%] right-[-5%] w-[40%] h-[40%] bg-indigo-300/20 rounded-full blur-3xl"></div></div>
-        <div className="relative z-10"><Link to="/" className="flex items-center gap-3 mb-20 group"><div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-brand-600 font-black text-2xl shadow-xl shadow-brand-900/20 transition-transform group-hover:scale-110">G</div><span className="text-2xl font-black text-white tracking-tighter">Gestion_Hotspot</span></Link><h2 className="text-6xl font-black text-white leading-tight tracking-tighter mb-8">Pilotez votre <br /><span className="text-brand-100 italic">succès numérique.</span></h2><p className="text-brand-50 text-xl font-medium max-w-md leading-relaxed opacity-90">La plateforme n°1 en Afrique pour la gestion et la monétisation de réseaux WiFi professionnels.</p></div>
-        <div className="relative z-10 grid grid-cols-2 gap-8"><div className="bg-white/10 backdrop-blur-md p-6 rounded-[2rem] border border-white/20"><div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-white mb-4"><Zap className="w-5 h-5 fill-current" /></div><p className="text-2xl font-black text-white mb-1">+12k</p><p className="text-[10px] font-black text-brand-100 uppercase tracking-widest">Tickets / Jour</p></div><div className="bg-white/10 backdrop-blur-md p-6 rounded-[2rem] border border-white/20"><div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-white mb-4"><Globe className="w-5 h-5" /></div><p className="text-2xl font-black text-white mb-1">24/7</p><p className="text-[10px] font-black text-brand-100 uppercase tracking-widest">Disponibilité Cloud</p></div></div>
-      </div>
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 md:p-16">
-        <div className="w-full max-w-md">
-          <div className="mb-12"><button onClick={() => navigate('/')} className="flex items-center gap-2 text-slate-400 hover:text-slate-900 font-bold text-xs tracking-widest uppercase mb-8 transition-colors group"><ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />Retour à l'accueil</button><h1 className="text-4xl font-black text-slate-900 tracking-tight mb-3">Ravi de vous revoir !</h1><p className="text-slate-400 font-medium">Accédez à votre console d'administration.</p></div>
-          {error && (<div className="mb-6 p-5 bg-red-50 border border-red-100 rounded-3xl flex items-start gap-4 text-red-600 animate-in fade-in slide-in-from-top-4">{error.includes("Impossible") ? <WifiOff className="w-6 h-6 shrink-0 mt-0.5" /> : <AlertCircle className="w-6 h-6 shrink-0 mt-0.5" />}<p className="text-sm font-bold leading-relaxed">{error}</p></div>)}
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Adresse Email</label><div className="relative group"><Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-brand-600 transition-colors" /><input type="email" required placeholder="nom@agence.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-14 pr-6 py-5 rounded-2xl border border-slate-100 bg-slate-50/50 focus:bg-white focus:ring-4 focus:ring-brand-50 outline-none font-bold text-slate-600 placeholder:text-slate-300 transition-all" /></div></div>
-            <div className="space-y-2"><div className="flex justify-between items-center px-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Mot de passe</label></div><div className="relative group"><Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-brand-600 transition-colors" /><input type="password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-14 pr-6 py-5 rounded-2xl border border-slate-100 bg-slate-50/50 focus:bg-white focus:ring-4 focus:ring-brand-50 outline-none font-bold text-slate-600 placeholder:text-slate-300 transition-all" /></div></div>
-            <div className="pt-4"><button type="submit" disabled={isLoading} className={`w-full py-5 bg-[#1e293b] hover:bg-black text-white rounded-[1.5rem] font-bold text-xs tracking-[0.2em] uppercase transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] ${isLoading ? 'opacity-80 cursor-wait' : ''}`}>{isLoading ? (<div className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />CONNEXION...</div>) : (<>ACCÉDER AU DASHBOARD<ArrowRight className="w-4 h-4" /></>)}</button></div>
-          </form>
-          <div className="mt-4 text-center"><p className="text-sm font-medium text-slate-400">Pas encore de compte ? <Link to="/register-agency" className="text-brand-600 font-black uppercase text-[10px] tracking-widest hover:underline ml-1">Créer une agence</Link></p></div>
-          <div className="mt-8 pt-8 border-t border-slate-50 flex items-center justify-center gap-6 opacity-40"><ShieldCheck className="w-5 h-5 text-slate-300" /><span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Connexion Sécurisée</span></div>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans text-slate-900">
+      <div className="w-full max-w-[1000px] bg-white rounded-2xl shadow-card overflow-hidden flex min-h-[600px]">
+        
+        {/* Left Side - Brand & Info */}
+        <div className="hidden lg:flex w-5/12 bg-slate-900 text-white p-12 flex-col justify-between relative overflow-hidden">
+           <div className="absolute top-0 right-0 w-64 h-64 bg-brand-600 rounded-full blur-[100px] opacity-20 -mr-20 -mt-20"></div>
+           
+           <div className="relative z-10">
+             <Link to="/" className="flex items-center gap-3 mb-10">
+               <div className="w-10 h-10 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">G</div>
+               <span className="text-lg font-bold tracking-tight">Gestion_Hotspot</span>
+             </Link>
+             <h2 className="text-3xl font-bold leading-tight mb-4">Gérez votre réseau WiFi <br/>comme un pro.</h2>
+             <p className="text-slate-400 text-sm leading-relaxed">Plateforme SaaS optimisée pour la gestion de tickets MikroTik, la vente et le suivi en temps réel.</p>
+           </div>
+
+           <div className="relative z-10 space-y-4">
+              <div className="flex items-center gap-3 text-sm text-slate-300">
+                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"><Zap className="w-4 h-4" /></div>
+                <span>Performances Cloud</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm text-slate-300">
+                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"><ShieldCheck className="w-4 h-4" /></div>
+                <span>Sécurité Enterprise</span>
+              </div>
+           </div>
+        </div>
+
+        {/* Right Side - Form */}
+        <div className="w-full lg:w-7/12 p-8 md:p-16 flex flex-col justify-center">
+          <div className="max-w-sm mx-auto w-full">
+            <button onClick={() => navigate('/')} className="flex items-center gap-2 text-slate-400 hover:text-slate-600 font-medium text-xs mb-8 transition-colors">
+              <ChevronLeft className="w-4 h-4" /> Retour
+            </button>
+            
+            <h1 className="text-2xl font-bold text-slate-900 mb-2">Connexion</h1>
+            <p className="text-slate-500 text-sm mb-8">Entrez vos identifiants pour accéder au dashboard.</p>
+
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg flex items-start gap-3 text-red-600 text-sm">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <p>{error}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700">Adresse Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-11 pr-4 py-2.5 rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm font-medium transition-all" placeholder="nom@entreprise.com" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-semibold text-slate-700">Mot de passe</label>
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-11 pr-4 py-2.5 rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm font-medium transition-all" placeholder="••••••••" />
+                </div>
+              </div>
+
+              <button type="submit" disabled={isLoading} className="w-full py-2.5 bg-slate-900 hover:bg-black text-white rounded-lg font-semibold text-sm transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed mt-2">
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Se connecter <ArrowRight className="w-4 h-4" /></>}
+              </button>
+            </form>
+
+            <div className="mt-8 text-center border-t border-slate-100 pt-6">
+              <p className="text-xs text-slate-500">Pas encore de compte ? <Link to="/register-agency" className="text-brand-600 font-bold hover:underline">Créer une agence</Link></p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

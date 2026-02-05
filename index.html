@@ -5,9 +5,9 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
-    <title>Gestion_Hotspot - SaaS Pro (Cloud)</title>
+    <title>Gestion_Hotspot - SaaS Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         theme: {
@@ -17,33 +17,22 @@
             },
             colors: {
               brand: {
-                50: '#f4f7fb',
-                100: '#e9eff6',
-                200: '#c7d6e9',
-                300: '#a6bddc',
-                400: '#638bc2',
-                500: '#2563eb',
-                600: '#1d4ed8',
-                700: '#1e40af',
-                800: '#1e3a8a',
-                900: '#172554',
-                950: '#020617',
+                50: '#eff6ff',
+                100: '#dbeafe',
+                200: '#bfdbfe',
+                300: '#93c5fd',
+                400: '#60a5fa',
+                500: '#3b82f6',
+                600: '#2563eb', // Primary Corporate Blue
+                700: '#1d4ed8',
+                800: '#1e40af',
+                900: '#1e3a8a',
+                950: '#172554',
               }
             },
-            borderRadius: {
-              '4xl': '2rem',
-              '5xl': '2.5rem',
-              '6xl': '3.5rem',
-            },
-            animation: {
-              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'float': 'float 6s ease-in-out infinite',
-            },
-            keyframes: {
-              float: {
-                '0%, 100%': { transform: 'translateY(0)' },
-                '50%': { transform: 'translateY(-10px)' },
-              }
+            boxShadow: {
+              'soft': '0 2px 10px rgba(0, 0, 0, 0.03)',
+              'card': '0 0 0 1px rgba(226, 232, 240, 1), 0 2px 4px rgba(0, 0, 0, 0.02)',
             }
           }
         }
@@ -52,42 +41,26 @@
     <style>
       body {
         font-family: 'Plus Jakarta Sans', sans-serif;
-        background-color: #f8fafc;
-        color: #0f172a;
+        background-color: #f8fafc; /* Slate 50 */
+        color: #0f172a; /* Slate 900 */
         -webkit-font-smoothing: antialiased;
         overflow-x: hidden;
       }
       
-      .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
-      .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-      .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 20px; }
-      .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+      /* Scrollbar professionnelle et discrète */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
+      input, select, textarea {
+        font-feature-settings: "cv11", "ss01";
+      }
+      
       .glass-card {
-        background: rgba(255, 255, 255, 0.8);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.4);
-      }
-
-      .ticket-shape {
-        clip-path: polygon(10% 0, 90% 0, 100% 15%, 100% 85%, 90% 100%, 10% 100%, 0 85%, 0 15%);
-      }
-
-      @media print {
-        body * { visibility: hidden; }
-        #print-section, #print-section * { visibility: visible; }
-        #print-section {
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 58mm;
-          padding: 5mm;
-        }
-      }
-
-      .gradient-bg {
-        background: radial-gradient(circle at top right, #f0f9ff 0%, #f8fafc 100%);
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(226, 232, 240, 0.8);
       }
     </style>
   <script type="importmap">
@@ -103,7 +76,7 @@
 }
 </script>
 </head>
-  <body class="gradient-bg">
+  <body>
     <div id="root"></div>
     <div id="print-section" class="hidden"></div>
   </body>

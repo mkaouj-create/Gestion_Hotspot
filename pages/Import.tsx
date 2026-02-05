@@ -55,12 +55,44 @@ const Import: React.FC = () => {
     setIsSubmitting(true); setProgress(0);
     try {
       const profileMap: Record<string, string> = {};
+      
+      // 1. Création ou Récupération des IDs de profils
       for (const p of profiles) {
-        const { data: existing } = await db.from('ticket_profiles').select('id').eq('tenant_id', tenantId).eq('name', p.name).maybeSingle();
-        if (existing) { profileMap[p.name] = existing.id; await db.from('ticket_profiles').update({ price: Number(p.price) }).eq('id', existing.id); } 
-        else { const { data: created } = await db.from('ticket_profiles').insert({ tenant_id: tenantId, name: p.name, price: Number(p.price) }).single(); if (created) profileMap[p.name] = created.id; }
+        const { data: existing } = await db.from('ticket_profiles')
+            .select('id')
+            .eq('tenant_id', tenantId)
+            .eq('name', p.name)
+            .maybeSingle();
+            
+        if (existing) { 
+            profileMap[p.name] = existing.id; 
+            await db.from('ticket_profiles').update({ price: Number(p.price) }).eq('id', existing.id); 
+        } else { 
+            // CORRECTION: Ajout de .select() pour retourner l'objet créé
+            const { data: created, error: createError } = await db.from('ticket_profiles')
+                .insert({ tenant_id: tenantId, name: p.name, price: Number(p.price) })
+                .select()
+                .single(); 
+            
+            if (createError) throw createError;
+            if (created) profileMap[p.name] = created.id; 
+        }
       }
-      const payload = parsedData.map(t => ({ tenant_id: tenantId, profile_id: profileMap[t.profile], username: t.username, password: t.password, status: 'NEUF' }));
+      
+      // 2. Préparation des données avec validation des IDs
+      const payload = parsedData.map(t => {
+          const profileId = profileMap[t.profile];
+          if (!profileId) throw new Error(`Erreur technique: Impossible de récupérer l'ID pour le profil "${t.profile}". Réessayez.`);
+          return { 
+              tenant_id: tenantId, 
+              profile_id: profileId, 
+              username: t.username, 
+              password: t.password, 
+              status: 'NEUF' 
+          };
+      });
+
+      // 3. Insertion par lots (Batch Insert)
       const BATCH_SIZE = 100;
       let totalSuccess = 0;
       let totalDupes = 0;
@@ -69,7 +101,11 @@ const Import: React.FC = () => {
         const { data: existing } = await db.from('tickets').select('username').eq('tenant_id', tenantId).in('username', batch.map(b => b.username));
         const existingSet = new Set(existing?.map(e => e.username));
         const unique = batch.filter(b => !existingSet.has(b.username));
-        if (unique.length > 0) { const { error: insErr } = await db.from('tickets').insert(unique); if (insErr) throw insErr; totalSuccess += unique.length; }
+        if (unique.length > 0) { 
+            const { error: insErr } = await db.from('tickets').insert(unique); 
+            if (insErr) throw insErr; 
+            totalSuccess += unique.length; 
+        }
         totalDupes += (batch.length - unique.length);
         setProgress(Math.round(((i + batch.length) / payload.length) * 100));
       }

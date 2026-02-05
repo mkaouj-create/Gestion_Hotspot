@@ -26,9 +26,31 @@ const Sales: React.FC = () => {
       if (!user) return;
       const { data: profile } = await db.from('users').select('*').eq('id', user.id).single();
       setUserProfile(profile);
+      
       const isReseller = profile.role === UserRole.REVENDEUR;
-      const { data: pData } = await db.from('ticket_profiles').select(`id, name, price, tickets(count)`).eq('tickets.status', isReseller ? TicketStatus.ASSIGNE : TicketStatus.NEUF).eq('tenant_id', profile.tenant_id);
-      setProfiles(pData || []);
+      
+      // Construction de la requête pour récupérer les profils ET le nombre de tickets dispos
+      // Pour un revendeur, on ne compte que ceux qui lui sont assignés
+      let query = db.from('ticket_profiles').select(`id, name, price, tickets!inner(count)`)
+          .eq('tenant_id', profile.tenant_id);
+
+      if (isReseller) {
+          // Inner join + filtres pour que profiles ne retourne QUE si tickets existent pour ce reseller
+          query = query.eq('tickets.assigned_to', user.id).eq('tickets.status', TicketStatus.ASSIGNE);
+      } else {
+          query = query.eq('tickets.status', TicketStatus.NEUF);
+      }
+
+      const { data: pData, error } = await query;
+      if (error) throw error;
+
+      // Transformation des données pour l'UI
+      const formattedProfiles = (pData || []).map((p: any) => ({
+          ...p,
+          tickets: p.tickets // Le count est déjà dans l'objet tickets[0] grâce à Supabase
+      }));
+      
+      setProfiles(formattedProfiles);
     } catch (err: any) { setError(err.message); } finally { setLoading(false); }
   };
 
@@ -51,8 +73,14 @@ const Sales: React.FC = () => {
     setIsProcessingSale(true); setError(null);
     try {
       const isReseller = userProfile.role === UserRole.REVENDEUR;
-      let query = db.from('tickets').select('id, username, password').eq('profile_id', selectedProfile.id).eq('status', isReseller ? TicketStatus.ASSIGNE : TicketStatus.NEUF).limit(1);
-      if (isReseller) query = query.eq('assigned_to', userProfile.id);
+      let query = db.from('tickets').select('id, username, password').eq('profile_id', selectedProfile.id).limit(1);
+      
+      if (isReseller) {
+          query = query.eq('status', TicketStatus.ASSIGNE).eq('assigned_to', userProfile.id);
+      } else {
+          query = query.eq('status', TicketStatus.NEUF);
+      }
+
       const { data: ticket, error: tError } = await query.maybeSingle();
       if (tError || !ticket) throw new Error("Rupture de stock pour ce forfait.");
 
@@ -83,10 +111,10 @@ const Sales: React.FC = () => {
         {loading ? (<div className="col-span-full py-40 flex flex-col items-center gap-4"><Loader2 className="w-12 h-12 animate-spin text-brand-600" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Accès au stock...</p></div>) : filteredProfiles.length > 0 ? filteredProfiles.map(p => (
           <div key={p.id} className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 flex flex-col justify-between h-[22rem] group relative overflow-hidden">
              <div className="absolute top-0 right-0 p-10 opacity-[0.03] group-hover:opacity-10 transition-all scale-150 rotate-12 group-hover:rotate-0"><Zap className="w-48 h-48 text-brand-600 fill-current" /></div>
-             <div><div className="flex justify-between items-start mb-8"><div className="w-16 h-16 bg-brand-50 text-brand-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-brand-600 group-hover:text-white transition-all shadow-sm"><Tag className="w-8 h-8" /></div><div className="text-right"><p className="text-3xl font-black text-slate-900 tracking-tight">{p.price.toLocaleString()} <span className="text-[10px] uppercase font-bold text-slate-400">GNF</span></p><p className="text-[9px] font-black text-brand-500 uppercase tracking-widest mt-1">Prix de vente</p></div></div><h3 className="text-2xl font-black mb-1.5 text-slate-900 group-hover:text-brand-600 transition-colors tracking-tight">{p.name}</h3><div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${p.tickets?.[0]?.count < 20 ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`}></div><p className={`text-[10px] font-black uppercase tracking-widest ${p.tickets?.[0]?.count < 20 ? 'text-red-500' : 'text-slate-400'}`}>{p.tickets?.[0]?.count || 0} Tickets en stock</p></div></div>
+             <div><div className="flex justify-between items-start mb-8"><div className="w-16 h-16 bg-brand-50 text-brand-600 rounded-[1.5rem] flex items-center justify-center group-hover:bg-brand-600 group-hover:text-white transition-all shadow-sm"><Tag className="w-8 h-8" /></div><div className="text-right"><p className="text-3xl font-black text-slate-900 tracking-tight">{p.price.toLocaleString()} <span className="text-[10px] uppercase font-bold text-slate-400">GNF</span></p><p className="text-[9px] font-black text-brand-500 uppercase tracking-widest mt-1">Prix de vente</p></div></div><h3 className="text-2xl font-black mb-1.5 text-slate-900 group-hover:text-brand-600 transition-colors tracking-tight">{p.name}</h3><div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${p.tickets?.[0]?.count < 20 ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`}></div><p className={`text-[10px] font-black uppercase tracking-widest ${p.tickets?.[0]?.count < 20 ? 'text-red-500' : 'text-slate-400'}`}>{p.tickets?.[0]?.count || 0} Tickets {userProfile?.role === UserRole.REVENDEUR ? '(Vous)' : '(Agence)'}</p></div></div>
              <button onClick={() => { setSelectedProfile(p); setShowPhoneModal(true); }} disabled={!p.tickets?.[0]?.count} className={`w-full py-6 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-xl ${!p.tickets?.[0]?.count ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-slate-900 hover:bg-black text-white hover:shadow-slate-200'}`}>VENDRE <ArrowRight className="w-5 h-5" /></button>
           </div>
-        )) : (<div className="col-span-full py-40 text-center"><div className="w-20 h-20 bg-slate-50 text-slate-200 rounded-full flex items-center justify-center mx-auto mb-6"><Search className="w-10 h-10" /></div><p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Aucun forfait correspondant</p></div>)}
+        )) : (<div className="col-span-full py-40 text-center"><div className="w-20 h-20 bg-slate-50 text-slate-200 rounded-full flex items-center justify-center mx-auto mb-6"><Search className="w-10 h-10" /></div><p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Aucun ticket disponible pour votre compte</p></div>)}
       </div>
       {showPhoneModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
