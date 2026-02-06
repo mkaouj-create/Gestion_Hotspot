@@ -1,46 +1,69 @@
 import { createClient } from '@supabase/supabase-js';
 
-// -- CONFIGURATION SUPABASE --
-// Lecture sécurisée des variables d'environnement injectées par Vercel (Vite)
+// -- CONFIGURATION SUPABASE ROBUSTE --
 
-const getEnv = (key: string) => {
+// Valeurs de secours (Projet Demo) pour garantir le démarrage de l'app 
+// si les variables Vercel ne sont pas encore propagées ou mal configurées.
+const FALLBACK_URL = 'https://phfuneblonazhmvcxaqf.supabase.co';
+const FALLBACK_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoZnVuZWJsb25hemhtdmN4YXFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMjc4ODMsImV4cCI6MjA4NTgwMzg4M30.Jw5iXWuKW6uZYzCdaLiaVV30GZoHprld7UxcG1u8T7A';
+
+const getEnv = (key: string): string | undefined => {
+  let val: string | undefined = undefined;
+  
+  // 1. Essai Vite (import.meta.env)
   try {
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env) {
       // @ts-ignore
-      return import.meta.env[key] || '';
+      val = import.meta.env[key];
     }
-  } catch (e) {
-    console.warn('Erreur lecture env:', e);
+  } catch (e) {}
+
+  // 2. Essai Process (compatibilité Vercel)
+  if (!val) {
+    try {
+      // @ts-ignore
+      if (typeof process !== 'undefined' && process.env) {
+        // @ts-ignore
+        val = process.env[key];
+      }
+    } catch (e) {}
   }
-  return '';
+
+  // Nettoyage (suppression des guillemets si présents par erreur dans la config)
+  return val ? val.replace(/['"]/g, '').trim() : undefined;
 };
 
-const supabaseUrl = getEnv('VITE_SUPABASE_URL');
-const supabaseKey = getEnv('VITE_SUPABASE_ANON_KEY');
+// Récupération des clés
+const envUrl = getEnv('VITE_SUPABASE_URL');
+const envKey = getEnv('VITE_SUPABASE_ANON_KEY');
 
-// Validation au démarrage
-if (!supabaseUrl || !supabaseKey) {
-  console.error(
-    '%c ERREUR CONFIGURATION SUPABASE ',
-    'background: #ef4444; color: #fff; font-weight: bold; padding: 4px;',
-    'Les variables VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY sont manquantes.',
-    'Vérifiez vos réglages "Environment Variables" dans Vercel.'
+// Sélection finale : Env ou Fallback
+// Cela empêche l'erreur "Failed to fetch" causée par une URL vide ou invalide
+const supabaseUrl = envUrl || FALLBACK_URL;
+const supabaseKey = envKey || FALLBACK_KEY;
+
+// Feedback console pour le développeur
+if (!envUrl || !envKey) {
+  console.warn(
+    '%c ATTENTION: Variables d\'env manquantes. Mode DÉMO activé. ',
+    'background: #f59e0b; color: #000; font-weight: bold; padding: 4px;'
   );
+  console.log('URL utilisée:', supabaseUrl);
 } else {
   console.log(
-    '%c SUPABASE CONNECTED ',
-    'background: #10b981; color: #fff; font-weight: bold; padding: 4px;',
-    'URL:', supabaseUrl.substring(0, 20) + '...'
+    '%c SUPABASE CONNECTED (PROD) ',
+    'background: #10b981; color: #fff; font-weight: bold; padding: 4px;'
   );
 }
 
 // Initialisation du client
-// Utilisation de valeurs placeholder si les vars sont manquantes pour éviter le crash blanc,
-// mais les appels API échoueront proprement.
-export const db = createClient(
-  supabaseUrl || 'https://project-not-configured.supabase.co', 
-  supabaseKey || 'anon-key-missing'
-);
+export const db = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+});
 
 export { supabaseUrl, supabaseKey };
