@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { Users, Wallet, Plus, Search, Loader2, TrendingUp, TrendingDown, ArrowRight, History, Ticket, DollarSign, X, Building2, CheckCircle2, AlertCircle, Smartphone, Filter, LayoutGrid, List, Calendar, CreditCard, UserCircle, ClipboardList, Tag } from 'lucide-react';
+import { Users, Wallet, Plus, Search, Loader2, TrendingUp, TrendingDown, ArrowRight, History, Ticket, DollarSign, X, Building2, CheckCircle2, AlertCircle, Smartphone, Filter, LayoutGrid, List, Calendar, CreditCard, UserCircle, ClipboardList, Tag, BarChart3, PieChart } from 'lucide-react';
 import { db } from '../services/db';
 import { UserRole, User, TicketStatus } from '../types';
 
@@ -15,7 +14,8 @@ const Resellers: React.FC = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [showStockHistoryModal, setShowStockHistoryModal] = useState(false); // New Modal State
+  const [showStockHistoryModal, setShowStockHistoryModal] = useState(false);
+  const [showStatsModal, setShowStatsModal] = useState(false); // New Stats Modal
   
   const [selectedReseller, setSelectedReseller] = useState<User | null>(null);
   
@@ -32,7 +32,8 @@ const Resellers: React.FC = () => {
   // Data States
   const [processing, setProcessing] = useState(false);
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
-  const [stockHistory, setStockHistory] = useState<any[]>([]); // New Data State
+  const [stockHistory, setStockHistory] = useState<any[]>([]);
+  const [statsData, setStatsData] = useState<any>(null); // New Stats Data
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [toast, setToast] = useState<any>(null);
 
@@ -122,11 +123,10 @@ const Resellers: React.FC = () => {
   const fetchStockHistoryData = async (resellerId: string) => {
     setLoadingHistory(true);
     try {
-        // Récupère les tickets assignés à ce revendeur OU vendus par lui
         const { data, error } = await db.from('tickets')
             .select('id, username, status, sold_at, imported_at, ticket_profiles(name, price)')
             .or(`assigned_to.eq.${resellerId},sold_by.eq.${resellerId}`)
-            .order('sold_at', { ascending: false, nullsFirst: true }); // Les vendus en premier, puis le stock
+            .order('sold_at', { ascending: false, nullsFirst: true });
 
         if (error) throw error;
         setStockHistory(data || []);
@@ -136,6 +136,69 @@ const Resellers: React.FC = () => {
     } finally {
         setLoadingHistory(false);
     }
+  };
+
+  // --- STATS CALCULATION ---
+  const fetchResellerStats = async (resellerId: string) => {
+      setLoadingHistory(true);
+      try {
+          // Récupérer les ventes des 30 derniers jours
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          
+          const { data: sales, error } = await db.from('sales_history')
+             .select('amount_paid, sold_at, tickets(ticket_profiles(name))')
+             .eq('seller_id', resellerId)
+             .gte('sold_at', thirtyDaysAgo.toISOString());
+
+          if(error) throw error;
+
+          // 1. Calculs globaux
+          const totalRevenue30d = sales?.reduce((acc, curr) => acc + Number(curr.amount_paid), 0) || 0;
+          const totalSalesCount = sales?.length || 0;
+          const averageBasket = totalSalesCount > 0 ? Math.round(totalRevenue30d / totalSalesCount) : 0;
+
+          // 2. Répartition par jour (7 derniers jours) pour le graph
+          const last7Days = Array.from({length: 7}, (_, i) => {
+              const d = new Date();
+              d.setDate(d.getDate() - (6 - i));
+              return d.toISOString().split('T')[0];
+          });
+          
+          const chartData = last7Days.map(date => {
+              const count = sales?.filter(s => s.sold_at.startsWith(date)).length || 0;
+              return { date, count };
+          });
+          
+          const maxDailySales = Math.max(...chartData.map(d => d.count), 1); // Pour l'échelle du graph
+
+          // 3. Répartition par profil (Top produits)
+          const profileStats: Record<string, number> = {};
+          sales?.forEach(s => {
+              const pName = (s.tickets as any)?.ticket_profiles?.name || 'Inconnu';
+              profileStats[pName] = (profileStats[pName] || 0) + 1;
+          });
+          
+          const topProfiles = Object.entries(profileStats)
+              .map(([name, count]) => ({ name, count }))
+              .sort((a, b) => b.count - a.count)
+              .slice(0, 5); // Top 5
+
+          setStatsData({
+              totalRevenue30d,
+              totalSalesCount,
+              averageBasket,
+              chartData,
+              maxDailySales,
+              topProfiles
+          });
+
+      } catch(err: any) {
+          console.error(err);
+          setToast({ type: 'error', message: "Erreur calcul statistiques." });
+      } finally {
+          setLoadingHistory(false);
+      }
   };
 
   const openHistory = (reseller: User) => {
@@ -148,6 +211,13 @@ const Resellers: React.FC = () => {
       setSelectedReseller(reseller);
       setShowStockHistoryModal(true);
       fetchStockHistoryData(reseller.id);
+  };
+  
+  const openStats = (reseller: User) => {
+      setSelectedReseller(reseller);
+      setShowStatsModal(true);
+      setStatsData(null);
+      fetchResellerStats(reseller.id);
   };
 
   const prepareAssign = async (reseller: User) => {
@@ -272,10 +342,20 @@ const Resellers: React.FC = () => {
                 {filteredResellers.map(reseller => (
                     <div key={reseller.id} className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm group hover:shadow-2xl transition-all duration-300 relative overflow-hidden flex flex-col justify-between">
                         {currentUser?.role === UserRole.ADMIN_GLOBAL && (<div className="absolute top-0 right-0 bg-slate-50 px-6 py-3 rounded-bl-[2rem] border-b border-l border-slate-100"><span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Building2 className="w-3 h-3" /> {(reseller as any).tenants?.name || 'Inconnu'}</span></div>)}
+                        
+                        {/* HEADER CARD */}
                         <div>
                             <div className="flex items-center gap-4 mb-8 mt-2">
                                 <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg border-4 border-slate-50">{reseller.full_name.charAt(0)}</div>
-                                <div><h3 className="font-black text-lg text-slate-900 leading-tight">{reseller.full_name}</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[180px] mt-1">{reseller.email}</p></div>
+                                <div>
+                                    <h3 className="font-black text-lg text-slate-900 leading-tight flex items-center gap-2">
+                                        {reseller.full_name} 
+                                        <button onClick={() => openStats(reseller)} className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
+                                            <BarChart3 className="w-3.5 h-3.5" />
+                                        </button>
+                                    </h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[180px] mt-1">{reseller.email}</p>
+                                </div>
                             </div>
                             <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 mb-6">
                                 <div className="flex justify-between items-center mb-4">
@@ -285,6 +365,8 @@ const Resellers: React.FC = () => {
                                 <p className={`text-3xl font-black tracking-tight ${Number(reseller.balance || 0) < 0 ? 'text-red-500' : 'text-slate-900'}`}>{Number(reseller.balance || 0).toLocaleString()} <span className="text-[10px] text-slate-400 uppercase align-top mt-1 inline-block">GNF</span></p>
                             </div>
                         </div>
+                        
+                        {/* ACTIONS */}
                         <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-3">
                                 <button onClick={() => { setSelectedReseller(reseller); setShowPaymentModal(true); setMethod('CASH'); setPaymentPhone(''); }} className="py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 active:scale-95"><DollarSign className="w-4 h-4" /> RECHARGER</button>
@@ -343,6 +425,7 @@ const Resellers: React.FC = () => {
                                         <div className="flex justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                             <button onClick={() => { setSelectedReseller(reseller); setShowPaymentModal(true); setMethod('CASH'); setPaymentPhone(''); }} title="Recharger" className="p-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl transition-all shadow-sm"><DollarSign className="w-4 h-4" /></button>
                                             <button onClick={() => prepareAssign(reseller)} title="Assigner Stock" className="p-2.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl transition-all shadow-sm"><Ticket className="w-4 h-4" /></button>
+                                            <button onClick={() => openStats(reseller)} title="Statistiques" className="p-2.5 bg-purple-50 text-purple-600 hover:bg-purple-600 hover:text-white rounded-xl transition-all shadow-sm"><BarChart3 className="w-4 h-4" /></button>
                                             <button onClick={() => openStockHistory(reseller)} title="Suivi Stock" className="p-2.5 bg-orange-50 text-orange-600 hover:bg-orange-600 hover:text-white rounded-xl transition-all shadow-sm"><ClipboardList className="w-4 h-4" /></button>
                                             <button onClick={() => openHistory(reseller)} title="Historique Paiements" className="p-2.5 bg-slate-50 text-slate-500 hover:bg-slate-900 hover:text-white rounded-xl transition-all shadow-sm"><History className="w-4 h-4" /></button>
                                         </div>
@@ -389,6 +472,105 @@ const Resellers: React.FC = () => {
                 <button type="submit" disabled={processing} className="w-full mt-10 py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95">{processing ? <Loader2 className="w-5 h-5 animate-spin" /> : "VALIDER L'ATTRIBUTION"}</button>
             </form>
         </div>
+      )}
+
+      {/* --- STATS DETAILED MODAL (NEW) --- */}
+      {showStatsModal && selectedReseller && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in">
+              <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowStatsModal(false)} />
+              <div className="bg-white w-full max-w-3xl max-h-[90vh] rounded-[3.5rem] p-10 relative z-10 animate-in zoom-in-95 shadow-2xl flex flex-col">
+                  <div className="flex items-center justify-between mb-8 shrink-0">
+                      <div>
+                          <div className="flex items-center gap-2 text-indigo-600 mb-1">
+                              <BarChart3 className="w-5 h-5" />
+                              <span className="text-[10px] font-black uppercase tracking-widest">Analytics</span>
+                          </div>
+                          <h2 className="text-3xl font-black text-slate-900 tracking-tight leading-none">Performance</h2>
+                          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Données 30 Jours : <span className="text-slate-800">{selectedReseller.full_name}</span></p>
+                      </div>
+                      <button onClick={() => setShowStatsModal(false)} className="p-3 bg-slate-50 text-slate-300 hover:text-slate-900 hover:bg-slate-200 rounded-2xl transition-all"><X className="w-6 h-6" /></button>
+                  </div>
+
+                  <div className="overflow-y-auto custom-scrollbar grow -mx-4 px-4 pb-8">
+                      {loadingHistory ? (
+                          <div className="py-20 flex flex-col items-center gap-4"><Loader2 className="w-12 h-12 animate-spin text-slate-200" /><p className="text-xs font-black uppercase tracking-widest text-slate-300">Analyse des données...</p></div>
+                      ) : !statsData ? (
+                          <div className="py-20 text-center"><p className="text-slate-300 font-bold uppercase text-xs">Aucune donnée disponible</p></div>
+                      ) : (
+                          <div className="space-y-8">
+                              {/* KPIS */}
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                  <div className="bg-indigo-50 p-6 rounded-[2.5rem] border border-indigo-100">
+                                      <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-2">Volume Total</p>
+                                      <p className="text-3xl font-black text-indigo-900">{statsData.totalRevenue30d.toLocaleString()}</p>
+                                      <span className="text-[10px] font-bold text-indigo-500 uppercase">GNF</span>
+                                  </div>
+                                  <div className="bg-emerald-50 p-6 rounded-[2.5rem] border border-emerald-100">
+                                      <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-2">Tickets Vendus</p>
+                                      <p className="text-3xl font-black text-emerald-900">{statsData.totalSalesCount}</p>
+                                      <span className="text-[10px] font-bold text-emerald-600 uppercase">Unités</span>
+                                  </div>
+                                  <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100">
+                                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Panier Moyen</p>
+                                      <p className="text-3xl font-black text-slate-900">{statsData.averageBasket.toLocaleString()}</p>
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase">GNF / Ticket</span>
+                                  </div>
+                              </div>
+
+                              {/* CHART (CSS ONLY) */}
+                              <div className="bg-white border border-slate-100 rounded-[3rem] p-8 shadow-sm">
+                                  <div className="flex items-center gap-2 mb-6 text-slate-400">
+                                      <TrendingUp className="w-4 h-4" />
+                                      <span className="text-[10px] font-black uppercase tracking-widest">Évolution des ventes (7 Jours)</span>
+                                  </div>
+                                  <div className="flex items-end justify-between h-40 gap-2">
+                                      {statsData.chartData.map((d: any, i: number) => {
+                                          const heightPerc = Math.max(Math.round((d.count / statsData.maxDailySales) * 100), 5); // Min 5% height
+                                          return (
+                                              <div key={i} className="flex flex-col items-center flex-1 group">
+                                                  <div className="relative w-full flex justify-center">
+                                                     <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-slate-900 text-white text-[9px] font-bold px-2 py-1 rounded-lg transition-opacity mb-1 z-10">{d.count} Ventes</div>
+                                                     <div className="w-full max-w-[20px] bg-indigo-500 rounded-t-lg transition-all duration-500 hover:bg-indigo-600" style={{ height: `${heightPerc}%` }}></div>
+                                                  </div>
+                                                  <span className="text-[8px] font-bold text-slate-400 mt-2 uppercase">{new Date(d.date).toLocaleDateString('fr-FR', {weekday: 'short'})}</span>
+                                              </div>
+                                          );
+                                      })}
+                                  </div>
+                              </div>
+
+                              {/* TOP PRODUCTS */}
+                              <div>
+                                  <div className="flex items-center gap-2 mb-4 text-slate-400 px-2">
+                                      <PieChart className="w-4 h-4" />
+                                      <span className="text-[10px] font-black uppercase tracking-widest">Top Forfaits</span>
+                                  </div>
+                                  <div className="space-y-3">
+                                      {statsData.topProfiles.length === 0 ? (
+                                           <div className="p-8 bg-slate-50 rounded-3xl text-center text-slate-300 font-bold text-xs uppercase">Aucune vente récente</div>
+                                      ) : (
+                                          statsData.topProfiles.map((p: any, i: number) => (
+                                              <div key={i} className="flex items-center gap-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-50">
+                                                  <div className="w-8 h-8 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-500 font-black text-xs shadow-sm">{i + 1}</div>
+                                                  <div className="flex-1">
+                                                      <div className="flex justify-between items-center mb-1">
+                                                          <span className="text-xs font-black text-slate-700">{p.name}</span>
+                                                          <span className="text-[10px] font-bold text-slate-400">{p.count} ventes</span>
+                                                      </div>
+                                                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                          <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${Math.round((p.count / statsData.totalSalesCount) * 100)}%` }}></div>
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                          ))
+                                      )}
+                                  </div>
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>
       )}
 
       {/* --- PAYMENT HISTORY MODAL --- */}
@@ -441,14 +623,14 @@ const Resellers: React.FC = () => {
           </div>
       )}
 
-      {/* --- STOCK ASSIGNMENT HISTORY MODAL (NEW) --- */}
+      {/* --- STOCK ASSIGNMENT HISTORY MODAL --- */}
       {showStockHistoryModal && selectedReseller && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in">
               <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowStockHistoryModal(false)} />
               <div className="bg-white w-full max-w-2xl max-h-[80vh] rounded-[3rem] p-10 relative z-10 animate-in zoom-in-95 shadow-2xl flex flex-col">
                   <div className="flex items-center justify-between mb-8 shrink-0">
                       <div>
-                          <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Suivi du Stock / Assignations</h2>
+                          <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Suivi du Stock</h2>
                           <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Pour {selectedReseller.full_name}</p>
                       </div>
                       <button onClick={() => setShowStockHistoryModal(false)} className="p-2 text-slate-300 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all"><X className="w-6 h-6" /></button>
