@@ -31,8 +31,10 @@ const PendingApproval: React.FC = () => {
 
       if (status === 'ACTIF') {
         setToast({ type: 'success', message: "Compte validé ! Accès au Dashboard..." });
-        setTimeout(() => window.location.href = '/#/dashboard', 1500); // Force reload via href pour être sûr
-        setTimeout(() => window.location.reload(), 1600);
+        setTimeout(() => {
+             navigate('/dashboard');
+             window.location.reload(); // Refresh pour rafraîchir le state global
+        }, 1500);
       } else if (manual) {
         setToast({ type: 'error', message: "Toujours en attente. Merci de patienter." }); 
         setTimeout(() => setIsChecking(false), 500);
@@ -80,7 +82,7 @@ const PendingApproval: React.FC = () => {
             setToast({ type: 'success', message: "🎉 VALIDATION REÇUE ! Redirection..." });
             // Petit délai pour laisser l'utilisateur lire le message de succès
             setTimeout(() => {
-               window.location.href = '/#/dashboard';
+               navigate('/dashboard');
                window.location.reload();
             }, 2000);
           }

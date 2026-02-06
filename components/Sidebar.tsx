@@ -22,7 +22,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     getProfile();
   }, []);
 
-  const handleLogout = async () => { await db.auth.signOut(); window.location.href = '/'; };
+  const handleLogout = async () => { 
+      await db.auth.signOut(); 
+      navigate('/');
+  };
 
   const navItems: NavItem[] = [
     { label: 'Tableau de bord', path: '/dashboard', icon: LayoutDashboard },
