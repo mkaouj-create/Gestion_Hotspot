@@ -1,4 +1,5 @@
 
+
 -- INITIALISATION DE LA BASE DE DONNÉES GESTION_HOTSPOT
 -- SCRIPT CORRIGÉ : Compatible avec une base de données existante (Idempotent)
 
@@ -268,7 +269,8 @@ begin
   set sold_by = null 
   where sold_by = target_user_id;
 
-  -- 5. Supprimer l'utilisateur
-  delete from public.users where id = target_user_id;
+  -- 5. IMPORTANT : Supprimer l'utilisateur de la table d'authentification 
+  -- Cela déclenchera automatiquement la suppression de public.users via le 'ON DELETE CASCADE'
+  delete from auth.users where id = target_user_id;
 end;
 $$ language plpgsql security definer;
