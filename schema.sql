@@ -227,12 +227,27 @@ begin
 end;
 $$ language plpgsql security definer;
 
--- Fonction RPC: Supprimer un utilisateur (Utilisée dans Users.tsx)
+-- Fonction RPC: Supprimer un utilisateur et toutes ses données (Utilisée dans Users.tsx)
 create or replace function delete_user_fully(target_user_id uuid)
 returns void as $$
 begin
+  -- 1. Nettoyer l'historique des paiements
+  delete from public.payments where reseller_id = target_user_id;
+
+  -- 2. Nettoyer l'historique des ventes
+  delete from public.sales_history where seller_id = target_user_id;
+
+  -- 3. Désassigner les tickets stock (remettre en NEUF)
+  update public.tickets 
+  set assigned_to = null, status = 'NEUF' 
+  where assigned_to = target_user_id and status = 'ASSIGNÉ';
+
+  -- 4. Anonymiser les tickets vendus (retirer la référence vendeur)
+  update public.tickets 
+  set sold_by = null 
+  where sold_by = target_user_id;
+
+  -- 5. Supprimer l'utilisateur
   delete from public.users where id = target_user_id;
-  -- Note: En théorie il faudrait aussi supprimer de auth.users via une Edge Function admin
-  -- car Postgres standard ne peut pas écrire dans auth.users directement sans permissions superuser.
 end;
 $$ language plpgsql security definer;
