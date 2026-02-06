@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Menu, Loader2 } from 'lucide-react';
 import { db } from './services/db';
 
@@ -119,7 +119,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <HashRouter>
+    <BrowserRouter>
       <Routes>
         <Route path="/" element={!session ? <Landing /> : <Navigate to="/dashboard" replace />} />
         <Route path="/login" element={!session ? <Login /> : <Navigate to="/dashboard" replace />} />
@@ -152,7 +152,7 @@ const App: React.FC = () => {
           </>
         ) : ( <Route path="*" element={<Navigate to="/login" replace />} /> )}
       </Routes>
-    </HashRouter>
+    </BrowserRouter>
   );
 };
 export default App;

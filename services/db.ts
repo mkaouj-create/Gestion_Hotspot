@@ -1,12 +1,46 @@
-
 import { createClient } from '@supabase/supabase-js';
 
-// Configuration de la connexion Supabase
-export const supabaseUrl = 'https://phfuneblonazhmvcxaqf.supabase.co';
-export const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBoZnVuZWJsb25hemhtdmN4YXFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMjc4ODMsImV4cCI6MjA4NTgwMzg4M30.Jw5iXWuKW6uZYzCdaLiaVV30GZoHprld7UxcG1u8T7A';
+// -- CONFIGURATION SUPABASE --
+// Lecture sécurisée des variables d'environnement injectées par Vercel (Vite)
 
-// Initialisation du client principal (Singleton pour l'Auth state global)
-export const db = createClient(supabaseUrl, supabaseKey);
+const getEnv = (key: string) => {
+  try {
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      // @ts-ignore
+      return import.meta.env[key] || '';
+    }
+  } catch (e) {
+    console.warn('Erreur lecture env:', e);
+  }
+  return '';
+};
 
-// Note : Pour que l'application fonctionne, vous devez exécuter le script SQL 
-// fourni dans le fichier schema.sql via l'interface Supabase (SQL Editor).
+const supabaseUrl = getEnv('VITE_SUPABASE_URL');
+const supabaseKey = getEnv('VITE_SUPABASE_ANON_KEY');
+
+// Validation au démarrage
+if (!supabaseUrl || !supabaseKey) {
+  console.error(
+    '%c ERREUR CONFIGURATION SUPABASE ',
+    'background: #ef4444; color: #fff; font-weight: bold; padding: 4px;',
+    'Les variables VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY sont manquantes.',
+    'Vérifiez vos réglages "Environment Variables" dans Vercel.'
+  );
+} else {
+  console.log(
+    '%c SUPABASE CONNECTED ',
+    'background: #10b981; color: #fff; font-weight: bold; padding: 4px;',
+    'URL:', supabaseUrl.substring(0, 20) + '...'
+  );
+}
+
+// Initialisation du client
+// Utilisation de valeurs placeholder si les vars sont manquantes pour éviter le crash blanc,
+// mais les appels API échoueront proprement.
+export const db = createClient(
+  supabaseUrl || 'https://project-not-configured.supabase.co', 
+  supabaseKey || 'anon-key-missing'
+);
+
+export { supabaseUrl, supabaseKey };
