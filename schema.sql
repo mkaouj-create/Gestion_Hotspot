@@ -221,8 +221,26 @@ begin
     raise exception 'Accès refusé';
   end if;
 
-  -- Supprimer les données (Cascade s'occupe de la plupart, mais on nettoie users)
+  -- 1. Supprimer l'historique des ventes (Dépend de Tickets et Users)
+  delete from public.sales_history where tenant_id = target_tenant_id;
+
+  -- 2. Supprimer les paiements (Dépend de Users)
+  delete from public.payments where tenant_id = target_tenant_id;
+
+  -- 3. Supprimer les tickets (stock et vendus) (Dépend de Ticket Profiles et Users)
+  delete from public.tickets where tenant_id = target_tenant_id;
+
+  -- 4. Supprimer les profils de tickets (Dépend de Tenant)
+  delete from public.ticket_profiles where tenant_id = target_tenant_id;
+
+  -- 5. Supprimer les zones (Dépend de Tenant)
+  delete from public.zones where tenant_id = target_tenant_id;
+
+  -- 6. Supprimer les utilisateurs associés (Dépend de Tenant)
+  -- Note: Cela supprime le profil public, l'utilisateur Auth reste mais perd ses accès
   delete from public.users where tenant_id = target_tenant_id;
+
+  -- 7. Supprimer l'agence elle-même
   delete from public.tenants where id = target_tenant_id;
 end;
 $$ language plpgsql security definer;
@@ -231,10 +249,13 @@ $$ language plpgsql security definer;
 create or replace function delete_user_fully(target_user_id uuid)
 returns void as $$
 begin
-  -- 1. Nettoyer l'historique des paiements
+  -- 0. Détacher les paiements créés par cet utilisateur (pour ne pas bloquer la suppression si c'est un admin)
+  update public.payments set created_by = null where created_by = target_user_id;
+
+  -- 1. Nettoyer l'historique des paiements reçus par ce revendeur
   delete from public.payments where reseller_id = target_user_id;
 
-  -- 2. Nettoyer l'historique des ventes
+  -- 2. Nettoyer l'historique des ventes effectuées par ce revendeur
   delete from public.sales_history where seller_id = target_user_id;
 
   -- 3. Désassigner les tickets stock (remettre en NEUF)
