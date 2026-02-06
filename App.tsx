@@ -39,7 +39,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <Suspense fallback={null}><Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} /></Suspense>
         <div className="flex-1 flex flex-col h-full overflow-hidden relative">
           <header className="md:hidden bg-white border-b border-slate-100 p-4 flex items-center justify-between shrink-0 z-30">
-            <div className="flex items-center gap-2"><div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-black">G</div><span className="font-black text-sm tracking-tighter">Hotspot Pro</span></div>
+            <div className="flex items-center gap-2"><div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-black">G</div><span className="font-black text-sm tracking-tighter">Gestion_Hotspot</span></div>
             <button onClick={() => setSidebarOpen(true)} className="p-2 bg-slate-50 rounded-xl text-slate-500"><Menu className="w-6 h-6" /></button>
           </header>
           <main className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar relative z-10">

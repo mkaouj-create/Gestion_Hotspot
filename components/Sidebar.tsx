@@ -61,7 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                   {userInfo.agencyName.charAt(0)}
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-bold text-slate-900 text-sm leading-tight tracking-tight">Hotspot<span className="text-brand-600">Pro</span></span>
+                  <span className="font-bold text-slate-900 text-sm leading-tight tracking-tight">Gestion_<span className="text-brand-600">Hotspot</span></span>
                   <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Enterprise</span>
                 </div>
             </div>
