@@ -127,7 +127,21 @@ const Sales: React.FC = () => {
           <div className="bg-white w-full max-w-md rounded-[5rem] p-12 relative z-10 text-center shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
              <div className="w-24 h-24 bg-emerald-50 text-emerald-600 rounded-[2.5rem] flex items-center justify-center mx-auto mb-10 shadow-inner group-hover:scale-110 transition-all"><CheckCircle2 className="w-12 h-12" /></div>
              <h2 className="text-4xl font-black mb-3 text-slate-900 tracking-tighter">Paiement Validé !</h2><p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] mb-12">Donnez le code suivant au client</p>
-             <div className="bg-slate-50 p-12 rounded-[4rem] mb-12 border-2 border-dashed border-slate-200 relative group"><div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-1 bg-brand-500 h-1.5 w-16 rounded-full"></div><p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">VOUCHER CODE</p><div className="flex items-center justify-center gap-4 mb-10"><p className="text-6xl font-black text-slate-900 tracking-[0.2em] leading-none">{lastSoldTicket.username}</p><button onClick={copyCode} className="p-3 bg-white text-slate-400 hover:text-brand-600 rounded-xl shadow-sm border border-slate-100 transition-all active:scale-90"><Copy className="w-5 h-5" /></button></div><div className="bg-white p-8 rounded-[3rem] inline-block shadow-2xl border border-slate-50 mb-4 group-hover:scale-[1.05] transition-transform"><img src={generateQRCodeURL(lastSoldTicket.username)} alt="Ticket QR" className="w-36 h-36 mx-auto" /></div><p className="mt-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Scanner pour se connecter</p></div>
+             
+             {/* DESIGN REDUIT ET COMPACT DU TICKET */}
+             <div className="bg-slate-50 p-6 rounded-[2.5rem] mb-8 border-2 border-dashed border-slate-200 relative group">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-1 bg-brand-500 h-1.5 w-12 rounded-full"></div>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">VOUCHER CODE</p>
+                <div className="flex items-center justify-center gap-3 mb-6">
+                    <p className="text-4xl font-black text-slate-900 tracking-[0.15em] leading-none">{lastSoldTicket.username}</p>
+                    <button onClick={copyCode} className="p-2 bg-white text-slate-400 hover:text-brand-600 rounded-lg shadow-sm border border-slate-100 transition-all active:scale-90"><Copy className="w-4 h-4" /></button>
+                </div>
+                <div className="bg-white p-4 rounded-[2rem] inline-block shadow-xl border border-slate-50 mb-2 group-hover:scale-[1.02] transition-transform">
+                    <img src={generateQRCodeURL(lastSoldTicket.username)} alt="Ticket QR" className="w-24 h-24 mx-auto" />
+                </div>
+                <p className="mt-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Scanner pour se connecter</p>
+             </div>
+             
              <div className="grid grid-cols-1 gap-4"><button onClick={handleWhatsAppShare} className="w-full py-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.3em] flex items-center justify-center gap-4 transition-all transform active:scale-95 shadow-xl"><Share2 className="w-5 h-5" /> ENVOYER SUR WHATSAPP</button><button onClick={() => setShowSuccessModal(false)} className="w-full py-6 bg-slate-900 hover:bg-black text-white rounded-[2rem] font-black text-[10px] uppercase tracking-[0.3em] transition-all transform active:scale-95">CONTINUER LES VENTES</button></div>
           </div>
         </div>
