@@ -237,9 +237,10 @@ begin
   -- 5. Supprimer les zones (Dépend de Tenant)
   delete from public.zones where tenant_id = target_tenant_id;
 
-  -- 6. Supprimer les utilisateurs associés (Dépend de Tenant)
-  -- Note: Cela supprime le profil public, l'utilisateur Auth reste mais perd ses accès
-  delete from public.users where tenant_id = target_tenant_id;
+  -- 6. Supprimer TOUS les utilisateurs associés (depuis auth.users)
+  -- Cela déclenchera la suppression en cascade dans public.users
+  delete from auth.users 
+  where id in (select id from public.users where tenant_id = target_tenant_id);
 
   -- 7. Supprimer l'agence elle-même
   delete from public.tenants where id = target_tenant_id;

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Menu, Loader2 } from 'lucide-react';
@@ -33,22 +32,31 @@ const GlobalLoader = () => (
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
   return (
-    <div className="flex h-screen bg-[#f8fafc] overflow-hidden flex-col">
-      <div className="flex flex-1 overflow-hidden">
+    <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
         <Suspense fallback={null}><Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} /></Suspense>
-        <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-          <header className="md:hidden bg-white border-b border-slate-100 p-4 flex items-center justify-between shrink-0 z-30">
-            <div className="flex items-center gap-2"><div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-black">G</div><span className="font-black text-sm tracking-tighter">Gestion_Hotspot</span></div>
-            <button onClick={() => setSidebarOpen(true)} className="p-2 bg-slate-50 rounded-xl text-slate-500"><Menu className="w-6 h-6" /></button>
+        
+        <div className="flex-1 flex flex-col h-full overflow-hidden relative w-full">
+          {/* Mobile Header */}
+          <header className="lg:hidden bg-white border-b border-slate-100 px-4 py-3 flex items-center justify-between shrink-0 z-30 sticky top-0">
+            <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-black">G</div>
+                <span className="font-black text-sm tracking-tight">Gestion_Hotspot</span>
+            </div>
+            <button onClick={() => setSidebarOpen(true)} className="p-2 bg-slate-50 rounded-xl text-slate-600 hover:bg-slate-100 active:scale-95 transition-all">
+                <Menu className="w-6 h-6" />
+            </button>
           </header>
-          <main className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar relative z-10">
-            <div className="max-w-7xl mx-auto h-full pb-24">
-              <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-slate-200" /></div>}>{children}</Suspense>
+
+          <main className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-10 custom-scrollbar relative z-10 w-full">
+            <div className="max-w-7xl mx-auto h-full pb-24 lg:pb-10">
+              <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-slate-200" /></div>}>
+                  {children}
+              </Suspense>
             </div>
           </main>
         </div>
-      </div>
     </div>
   );
 };

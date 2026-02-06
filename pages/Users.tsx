@@ -45,7 +45,6 @@ const Users: React.FC = () => {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleHardDelete = async () => {
-    // Sécurité : Un agent ne peut pas supprimer
     if (currentUserProfile?.role === UserRole.AGENT) {
         notify('error', "Action non autorisée pour les agents.");
         return;
@@ -65,26 +64,13 @@ const Users: React.FC = () => {
       setUsers(prev => prev.filter(u => u.id !== userToDelete.id)); 
       setUserToDelete(null); 
       setConfirmDeleteText('');
-    } catch (err: any) { 
-        notify('error', "Erreur lors de la suppression : " + err.message); 
-    } finally { 
-        setIsDeleting(false); 
-    }
+    } catch (err: any) { notify('error', "Erreur lors de la suppression : " + err.message); } finally { setIsDeleting(false); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Sécurité 1: Un agent ne peut pas créer ou modifier
-    if (currentUserProfile?.role === UserRole.AGENT) {
-        notify('error', "Action non autorisée pour les agents.");
-        return;
-    }
-
-    // Sécurité 2: Un Gestionnaire ne peut pas créer d'Admin (Associe)
-    if (formData.role === UserRole.ASSOCIE && currentUserProfile?.role !== UserRole.ADMIN_GLOBAL) {
-        notify('error', "Seul le Master Admin peut créer des administrateurs.");
-        return;
-    }
+    if (currentUserProfile?.role === UserRole.AGENT) { notify('error', "Action non autorisée pour les agents."); return; }
+    if (formData.role === UserRole.ASSOCIE && currentUserProfile?.role !== UserRole.ADMIN_GLOBAL) { notify('error', "Seul le Master Admin peut créer des administrateurs."); return; }
 
     if (isSubmitting || !currentUserProfile) return;
     setIsSubmitting(true);
@@ -97,13 +83,7 @@ const Users: React.FC = () => {
         const { error: authError } = await tempClient.auth.signUp({ 
             email: formData.email.trim().toLowerCase(), 
             password: formData.password, 
-            options: { 
-                data: { 
-                    full_name: formData.fullName.trim(), 
-                    tenant_id: currentUserProfile.tenant_id, 
-                    role: formData.role 
-                } 
-            } 
+            options: { data: { full_name: formData.fullName.trim(), tenant_id: currentUserProfile.tenant_id, role: formData.role } } 
         });
         if (authError) throw authError; 
         notify('success', "Nouveau membre ajouté.");
@@ -116,13 +96,13 @@ const Users: React.FC = () => {
   const filteredUsers = users.filter(u => { const matchesSearch = u.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase()); const matchesRole = roleFilter === 'ALL' ? true : roleFilter === 'ADMIN' ? (u.role === UserRole.GESTIONNAIRE_WIFI_ZONE || u.role === UserRole.ADMIN) : u.role === roleFilter; return matchesSearch && matchesRole; });
 
   return (
-    <div className="space-y-8 pb-32 animate-in fade-in duration-500">
+    <div className="space-y-8 pb-32 animate-in fade-in duration-500 relative">
       {toast && (<div className={`fixed top-6 right-6 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-right ${toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}><CheckCircle2 className="w-5 h-5" /><p className="font-bold text-sm">{toast.message}</p></div>)}
       
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6">
         <div>
             <div className="flex items-center gap-2 text-indigo-600 mb-2"><UsersIcon className="w-5 h-5" /><span className="text-[10px] font-black uppercase tracking-widest">Gestion d'équipe</span></div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">Membres & Accès</h1>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Membres & Accès</h1>
             <p className="text-slate-400 font-medium mt-1">Administrez les rôles et les permissions de votre agence.</p>
         </div>
         <div className="flex flex-col md:flex-row gap-4">
@@ -131,9 +111,8 @@ const Users: React.FC = () => {
                 <button onClick={() => setViewMode('TABLE')} className={`p-3 rounded-xl transition-all ${viewMode === 'TABLE' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List className="w-5 h-5" /></button>
             </div>
             
-            {/* Masquer le bouton d'ajout pour les Agents */}
             {currentUserProfile?.role !== UserRole.AGENT && (
-                <button onClick={() => { setEditingUser(null); setFormData({fullName: '', email: '', password: '', role: UserRole.REVENDEUR}); setShowModal(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 shadow-xl shadow-indigo-200 transition-all active:scale-95">
+                <button onClick={() => { setEditingUser(null); setFormData({fullName: '', email: '', password: '', role: UserRole.REVENDEUR}); setShowModal(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl shadow-indigo-200 transition-all active:scale-95 w-full md:w-auto">
                     <UserPlus className="w-4 h-4" /> Nouveau Membre
                 </button>
             )}
@@ -145,7 +124,7 @@ const Users: React.FC = () => {
             <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
             <input type="text" placeholder="Rechercher par nom ou email..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full h-full pl-14 pr-6 py-4 bg-transparent rounded-[2rem] font-bold text-slate-700 placeholder:text-slate-300 outline-none" />
         </div>
-        <div className="flex bg-slate-50 p-1.5 rounded-[2rem] overflow-x-auto">
+        <div className="flex bg-slate-50 p-1.5 rounded-[2rem] overflow-x-auto no-scrollbar">
             {[{ id: 'ALL', label: 'Tous' }, { id: UserRole.REVENDEUR, label: 'Revendeurs' }, { id: UserRole.AGENT, label: 'Agents' }, { id: 'ADMIN', label: 'Admins' }].map((tab) => (<button key={tab.id} onClick={() => setRoleFilter(tab.id as any)} className={`px-6 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${roleFilter === tab.id ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>{tab.label}</button>))}
         </div>
       </div>
@@ -194,8 +173,6 @@ const Users: React.FC = () => {
                                         </div>
                                     </div>
                                 </div>
-                                
-                                {/* Actions Cards : Masquées pour les Agents */}
                                 <div className="grid grid-cols-2 gap-3 mt-auto">
                                     {currentUserProfile?.role !== UserRole.AGENT && (
                                         <>
@@ -220,7 +197,7 @@ const Users: React.FC = () => {
             {viewMode === 'TABLE' && (
                 <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden min-h-[400px]">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left">
+                        <table className="w-full text-left min-w-[800px]">
                             <thead>
                                 <tr className="border-b border-slate-50 bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                     <th className="px-10 py-6">MEMBRE</th>
@@ -245,8 +222,8 @@ const Users: React.FC = () => {
         </>
       )}
 
-      {showModal && (<div className="fixed inset-0 z-50 flex items-center justify-center p-6"><div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowModal(false)} /><form onSubmit={handleSubmit} className="bg-white w-full max-w-md rounded-[3.5rem] p-12 relative z-10 animate-in zoom-in-95 shadow-2xl border border-slate-100"><h2 className="text-2xl font-black mb-10 uppercase text-slate-900 text-center tracking-tight">{editingUser ? 'Modifier Profil' : 'Nouveau Membre'}</h2><div className="space-y-5"><div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Identité</label><input type="text" required value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} placeholder="Nom Complet" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-50 transition-all" /></div>{!editingUser && (<><div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Accès</label><input type="email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Email professionnel" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-50 transition-all" /><input type="password" required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder="Mot de passe provisoire" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-50 transition-all" /></div></>)}<div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Rôle Système</label><div className="relative"><select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as UserRole})} className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none appearance-none cursor-pointer focus:ring-4 focus:ring-indigo-50 transition-all"><option value={UserRole.REVENDEUR}>REVENDEUR (Prépayé)</option><option value={UserRole.AGENT}>AGENT TERRAIN (Vente Directe)</option>{currentUserProfile?.role === UserRole.ADMIN_GLOBAL && (<option value={UserRole.ASSOCIE}>ADMINISTRATEUR (Gestion)</option>)}</select><MoreHorizontal className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none w-5 h-5" /></div></div></div><button type="submit" disabled={isSubmitting} className="w-full mt-10 py-6 bg-slate-900 hover:bg-black text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-xl transition-all transform active:scale-95 flex items-center justify-center gap-3">{isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "ENREGISTRER LE MEMBRE"}</button><button type="button" onClick={() => setShowModal(false)} className="w-full mt-3 py-4 text-slate-400 hover:text-slate-600 font-bold text-xs uppercase tracking-widest transition-colors">Annuler</button></form></div>)}
-      {userToDelete && (<div className="fixed inset-0 z-[100] flex items-center justify-center p-6"><div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setUserToDelete(null)} /><div className="bg-white w-full max-w-sm rounded-[3rem] p-10 text-center relative z-10 border-t-8 border-red-600 shadow-2xl animate-in zoom-in-95"><div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner"><AlertTriangle className="w-10 h-10" /></div><h3 className="text-xl font-black text-slate-900 mb-2 uppercase">Supprimer le compte ?</h3><p className="text-slate-500 text-sm mb-8 leading-relaxed px-4">Cette action supprimera définitivement l'accès de <strong>{userToDelete.full_name}</strong> ainsi que tout son historique de ventes et paiements.</p><div className="space-y-4"><input type="text" value={confirmDeleteText} onChange={e => setConfirmDeleteText(e.target.value)} placeholder="Taper SUPPRIMER" className="w-full p-4 border-2 border-red-50 bg-red-50/50 rounded-2xl text-center font-black uppercase outline-none focus:border-red-200 focus:bg-white transition-all text-red-900 placeholder:text-red-200" /><button onClick={handleHardDelete} disabled={isDeleting || confirmDeleteText !== 'SUPPRIMER'} className="w-full py-5 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-red-100 transition-all">{isDeleting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "CONFIRMER LA SUPPRESSION"}</button><button onClick={() => setUserToDelete(null)} className="w-full py-4 text-slate-400 hover:text-slate-900 font-bold text-xs uppercase tracking-widest transition-colors">Annuler</button></div></div></div>)}
+      {showModal && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4"><div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowModal(false)} /><form onSubmit={handleSubmit} className="bg-white w-full max-w-md rounded-[3rem] p-8 md:p-12 relative z-10 animate-in zoom-in-95 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto"><h2 className="text-2xl font-black mb-10 uppercase text-slate-900 text-center tracking-tight">{editingUser ? 'Modifier Profil' : 'Nouveau Membre'}</h2><div className="space-y-5"><div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Identité</label><input type="text" required value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} placeholder="Nom Complet" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-50 transition-all" /></div>{!editingUser && (<><div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Accès</label><input type="email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Email professionnel" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-50 transition-all" /><input type="password" required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} placeholder="Mot de passe provisoire" className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-50 transition-all" /></div></>)}<div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Rôle Système</label><div className="relative"><select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as UserRole})} className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none appearance-none cursor-pointer focus:ring-4 focus:ring-indigo-50 transition-all"><option value={UserRole.REVENDEUR}>REVENDEUR (Prépayé)</option><option value={UserRole.AGENT}>AGENT TERRAIN (Vente Directe)</option>{currentUserProfile?.role === UserRole.ADMIN_GLOBAL && (<option value={UserRole.ASSOCIE}>ADMINISTRATEUR (Gestion)</option>)}</select><MoreHorizontal className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none w-5 h-5" /></div></div></div><button type="submit" disabled={isSubmitting} className="w-full mt-10 py-6 bg-slate-900 hover:bg-black text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-xl transition-all transform active:scale-95 flex items-center justify-center gap-3">{isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "ENREGISTRER LE MEMBRE"}</button><button type="button" onClick={() => setShowModal(false)} className="w-full mt-3 py-4 text-slate-400 hover:text-slate-600 font-bold text-xs uppercase tracking-widest transition-colors">Annuler</button></form></div>)}
+      {userToDelete && (<div className="fixed inset-0 z-[100] flex items-center justify-center p-4"><div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setUserToDelete(null)} /><div className="bg-white w-full max-w-sm rounded-[3rem] p-10 text-center relative z-10 border-t-8 border-red-600 shadow-2xl animate-in zoom-in-95"><div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner"><AlertTriangle className="w-10 h-10" /></div><h3 className="text-xl font-black text-slate-900 mb-2 uppercase">Supprimer le compte ?</h3><p className="text-slate-500 text-sm mb-8 leading-relaxed px-4">Cette action supprimera définitivement l'accès de <strong>{userToDelete.full_name}</strong> ainsi que tout son historique de ventes et paiements.</p><div className="space-y-4"><input type="text" value={confirmDeleteText} onChange={e => setConfirmDeleteText(e.target.value)} placeholder="Taper SUPPRIMER" className="w-full p-4 border-2 border-red-50 bg-red-50/50 rounded-2xl text-center font-black uppercase outline-none focus:border-red-200 focus:bg-white transition-all text-red-900 placeholder:text-red-200" /><button onClick={handleHardDelete} disabled={isDeleting || confirmDeleteText !== 'SUPPRIMER'} className="w-full py-5 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-red-100 transition-all">{isDeleting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "CONFIRMER LA SUPPRESSION"}</button><button onClick={() => setUserToDelete(null)} className="w-full py-4 text-slate-400 hover:text-slate-900 font-bold text-xs uppercase tracking-widest transition-colors">Annuler</button></div></div></div>)}
     </div>
   );
 };

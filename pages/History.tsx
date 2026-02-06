@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/db';
 import { History as HistoryIcon, Search, Loader2, Info, X, QrCode, Share2, RefreshCcw, RotateCcw, AlertTriangle, CheckCircle2, Building2, Calendar, AlertCircle, Printer, Filter } from 'lucide-react';
@@ -56,12 +55,151 @@ const History: React.FC = () => {
   const filteredSales = sales.filter(sale => { const s = searchTerm.toLowerCase(); return sale.tickets?.username?.toLowerCase().includes(s) || sale.users?.full_name?.toLowerCase().includes(s); });
 
   return (
-    <div className="space-y-6 font-sans pb-20 animate-in fade-in duration-500 relative">
+    <div className="space-y-6 font-sans pb-24 animate-in fade-in duration-500 relative">
       {toast && (<div className={`fixed top-6 right-6 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right border ${toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-red-600 text-white border-red-500'}`}>{toast.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}<p className="font-bold text-sm tracking-tight">{toast.message}</p></div>)}
-      <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden">{currentUser?.role === UserRole.ADMIN_GLOBAL && (<div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 rounded-full blur-[80px] -mr-20 -mt-20"></div>)}<div className="flex items-center gap-5 relative z-10"><div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-2xl ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'bg-brand-600 text-white' : 'bg-slate-900 text-white'}`}><HistoryIcon className="w-8 h-8" /></div><div><div className="flex items-center gap-2 mb-1"><span className={`text-[10px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded-md ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'bg-brand-50 text-brand-600' : 'bg-slate-50 text-slate-400'}`}>{currentUser?.role === UserRole.ADMIN_GLOBAL ? 'Vue Master Supervision SaaS' : 'Journal des Ventes'}</span></div><h1 className="text-4xl font-black text-slate-900 tracking-tight leading-none">Flux Transactions</h1></div></div><div className="flex items-center gap-4 relative z-10"><div className="bg-slate-50 border border-slate-100 p-5 px-8 rounded-[2rem]"><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">VOLUME</p><p className="text-2xl font-black text-slate-900">{stats.totalCount}</p></div><div className={`p-5 px-8 rounded-[2rem] border ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'bg-brand-50 border-brand-100' : 'bg-emerald-50 border-emerald-100'}`}><p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'text-brand-600' : 'text-emerald-600'}`}>RECETTE {currentUser?.role === UserRole.ADMIN_GLOBAL ? 'SAAS GLOBALE' : 'TOTALE'}</p><p className={`text-2xl font-black ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'text-brand-700' : 'text-emerald-700'}`}>{stats.totalRevenue.toLocaleString()} <span className="text-[10px] ml-1">GNF</span></p></div></div></div>
-      <div className="flex flex-col md:flex-row gap-4 items-center max-w-7xl mx-auto"><div className="relative group flex-1 w-full"><Search className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-300 group-focus-within:text-brand-600 transition-colors" /><input type="text" placeholder="Rechercher par code ticket ou agent..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-16 pr-8 py-5 rounded-[2rem] border border-slate-100 bg-white shadow-sm focus:ring-8 focus:ring-brand-50 outline-none font-bold text-slate-600 transition-all" /></div>{currentUser?.role === UserRole.ADMIN_GLOBAL && (<div className="relative w-full md:w-72"><Building2 className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" /><select value={agencyFilter} onChange={(e) => setAgencyFilter(e.target.value)} className="w-full pl-12 pr-10 py-5 rounded-[2rem] border border-slate-100 bg-white font-bold text-slate-600 appearance-none outline-none focus:ring-8 focus:ring-brand-50 transition-all shadow-sm cursor-pointer"><option value="ALL">Toutes les Agences (SaaS)</option>{agencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select><Filter className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" /></div>)}<button onClick={fetchHistory} className="p-5 bg-white border border-slate-100 rounded-full text-slate-400 hover:text-brand-600 shadow-sm transition-all hover:bg-slate-50 active:scale-90"><RefreshCcw className={`w-6 h-6 ${loading ? 'animate-spin' : ''}`} /></button></div>
-      <div className="bg-white rounded-[3.5rem] border border-slate-100 shadow-sm overflow-hidden min-h-[500px]">{loading && sales.length === 0 ? (<div className="flex flex-col items-center justify-center h-[500px] gap-4"><Loader2 className="w-12 h-12 text-brand-600 animate-spin opacity-40" /><p className="text-xs font-black text-slate-300 uppercase tracking-widest">Chargement du flux SaaS...</p></div>) : filteredSales.length === 0 ? (<div className="flex flex-col items-center justify-center h-[500px] text-slate-300 gap-4"><HistoryIcon className="w-16 h-16 opacity-10" /><p className="font-bold uppercase text-[10px] tracking-[0.2em]">Aucun mouvement enregistré</p></div>) : (<div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="border-b border-slate-50 bg-slate-50/30 text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-10 py-6">CHRONO</th>{(currentUser?.role === UserRole.ADMIN_GLOBAL || agencyFilter === 'ALL') && <th className="px-10 py-6">AGENCE</th>}<th className="px-10 py-6">OPÉRATEUR</th><th className="px-10 py-6">CODE TICKET</th><th className="px-10 py-6 text-right">MONTANT</th><th className="px-10 py-6"></th></tr></thead><tbody className="divide-y divide-slate-50">{filteredSales.map((sale) => (<tr key={sale.id} onClick={() => setSelectedSale(sale)} className="hover:bg-brand-50/30 transition-all group cursor-pointer"><td className="px-10 py-8"><div className="flex items-center gap-3"><Calendar className="w-4 h-4 text-slate-200" /><div><p className="text-xs font-black text-slate-900">{new Date(sale.sold_at).toLocaleDateString('fr-FR')}</p><p className="text-[10px] font-bold text-slate-400">{new Date(sale.sold_at).toLocaleTimeString('fr-FR')}</p></div></div></td>{(currentUser?.role === UserRole.ADMIN_GLOBAL || agencyFilter === 'ALL') && (<td className="px-10 py-8"><span className="text-[10px] font-black text-brand-500 uppercase bg-brand-50 px-3 py-1.5 rounded-xl border border-brand-100">{sale.tenants?.name}</span></td>)}<td className="px-10 py-8"><p className="text-xs font-black text-slate-800">{sale.users?.full_name}</p><p className="text-[9px] font-bold text-slate-400 uppercase">Agent</p></td><td className="px-10 py-8"><p className="font-black text-slate-900 text-lg tracking-tighter leading-none mb-1 group-hover:text-brand-600 transition-colors">{sale.tickets?.username}</p><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{sale.tickets?.ticket_profiles?.name}</p></td><td className="px-10 py-8 text-right"><p className="font-black text-slate-900 text-lg">{Number(sale.amount_paid).toLocaleString()} GNF</p><p className="text-[9px] font-bold text-emerald-600 uppercase">Encaissé</p></td><td className="px-10 py-8 text-right"><div className="flex items-center justify-end gap-2"><div className="p-3 bg-white text-slate-200 rounded-2xl group-hover:bg-brand-600 group-hover:text-white transition-all shadow-sm border border-slate-100 group-hover:border-brand-600"><Info className="w-4 h-4" /></div></div></td></tr>))}</tbody></table></div>)}</div>
-      {selectedSale && !saleToCancel && (<div className="fixed inset-0 z-40 flex items-center justify-center p-4 animate-in fade-in duration-300"><div className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" onClick={() => setSelectedSale(null)} /><div className="bg-white w-full max-w-[440px] rounded-[3.5rem] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95"><div className="bg-slate-900 p-12 text-center text-white relative"><button onClick={() => setSelectedSale(null)} className="absolute top-8 right-8 text-slate-500 hover:text-white transition-colors p-2"><X className="w-6 h-6" /></button><div className="w-20 h-20 bg-brand-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 border border-brand-500/20"><QrCode className="w-10 h-10 text-brand-400" /></div><h2 className="text-xl font-black tracking-widest uppercase">Fiche Transaction</h2><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Référence ID: {selectedSale.id.split('-')[0]}</p></div><div className="p-10 space-y-8"><div className="bg-slate-50 rounded-[2.5rem] p-10 text-center border-2 border-dashed border-slate-200 relative"><div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-1 h-1.5 w-16 bg-brand-500 rounded-full"></div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">CODE VOUCHER</p><p className="text-5xl font-black text-slate-900 tracking-[0.2em] mb-8 leading-none">{selectedSale.tickets?.username}</p><div className="grid grid-cols-2 gap-4 text-left border-t border-slate-100 pt-8"><div><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Agence Source</p><p className="text-xs font-black text-slate-800">{selectedSale.tenants?.name}</p></div><div className="text-right"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Offre</p><p className="text-xs font-black text-brand-600">{selectedSale.tickets?.ticket_profiles?.name}</p></div></div></div><div className="grid grid-cols-2 gap-4"><button onClick={handleWhatsAppShare} className="py-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl transition-all transform active:scale-95"><Share2 className="w-4 h-4" /> WHATSAPP</button><button onClick={handlePrint} className="py-5 bg-slate-900 hover:bg-black text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl transition-all transform active:scale-95"><Printer className="w-4 h-4" /> IMPRIMER</button><button onClick={() => initiateCancellation(selectedSale)} className="col-span-2 py-5 bg-white border border-red-100 text-red-500 hover:bg-red-50 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all"><RotateCcw className="w-4 h-4" /> RÉVOQUER / ANNULER</button></div></div></div></div>)}
+      
+      <div className="bg-white p-6 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-slate-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-8 relative overflow-hidden">
+          {currentUser?.role === UserRole.ADMIN_GLOBAL && (<div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 rounded-full blur-[80px] -mr-20 -mt-20"></div>)}
+          <div className="flex items-center gap-5 relative z-10">
+              <div className={`w-14 h-14 md:w-16 md:h-16 rounded-2xl flex items-center justify-center shadow-2xl ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'bg-brand-600 text-white' : 'bg-slate-900 text-white'}`}>
+                  <HistoryIcon className="w-7 h-7 md:w-8 md:h-8" />
+              </div>
+              <div>
+                  <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded-md ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'bg-brand-50 text-brand-600' : 'bg-slate-50 text-slate-400'}`}>
+                          {currentUser?.role === UserRole.ADMIN_GLOBAL ? 'Vue Master Supervision SaaS' : 'Journal des Ventes'}
+                      </span>
+                  </div>
+                  <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight leading-none">Flux Transactions</h1>
+              </div>
+          </div>
+          <div className="flex items-center gap-4 relative z-10 w-full md:w-auto">
+              <div className="bg-slate-50 border border-slate-100 p-4 md:p-5 px-6 md:px-8 rounded-[2rem] flex-1 md:flex-none">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">VOLUME</p>
+                  <p className="text-xl md:text-2xl font-black text-slate-900">{stats.totalCount}</p>
+              </div>
+              <div className={`p-4 md:p-5 px-6 md:px-8 rounded-[2rem] border flex-1 md:flex-none ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'bg-brand-50 border-brand-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                  <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'text-brand-600' : 'text-emerald-600'}`}>RECETTE {currentUser?.role === UserRole.ADMIN_GLOBAL ? 'SAAS GLOBALE' : 'TOTALE'}</p>
+                  <p className={`text-xl md:text-2xl font-black ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'text-brand-700' : 'text-emerald-700'}`}>{stats.totalRevenue.toLocaleString()} <span className="text-[10px] ml-1">GNF</span></p>
+              </div>
+          </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-4 items-center max-w-7xl mx-auto">
+          <div className="relative group flex-1 w-full">
+              <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 md:w-6 md:h-6 text-slate-300 group-focus-within:text-brand-600 transition-colors" />
+              <input type="text" placeholder="Rechercher par code ticket ou agent..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-14 md:pl-16 pr-8 py-4 md:py-5 rounded-[2rem] border border-slate-100 bg-white shadow-sm focus:ring-8 focus:ring-brand-50 outline-none font-bold text-slate-600 transition-all text-sm md:text-base" />
+          </div>
+          {currentUser?.role === UserRole.ADMIN_GLOBAL && (
+              <div className="relative w-full md:w-72">
+                  <Building2 className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                  <select value={agencyFilter} onChange={(e) => setAgencyFilter(e.target.value)} className="w-full pl-12 pr-10 py-4 md:py-5 rounded-[2rem] border border-slate-100 bg-white font-bold text-slate-600 appearance-none outline-none focus:ring-8 focus:ring-brand-50 transition-all shadow-sm cursor-pointer text-sm md:text-base"><option value="ALL">Toutes les Agences (SaaS)</option>{agencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
+                  <Filter className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
+              </div>
+          )}
+          <button onClick={fetchHistory} className="p-4 md:p-5 bg-white border border-slate-100 rounded-full text-slate-400 hover:text-brand-600 shadow-sm transition-all hover:bg-slate-50 active:scale-90 hidden md:block">
+              <RefreshCcw className={`w-6 h-6 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+      </div>
+
+      <div className="bg-white rounded-[2rem] md:rounded-[3.5rem] border border-slate-100 shadow-sm overflow-hidden min-h-[500px]">
+          {loading && sales.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-[500px] gap-4">
+                  <Loader2 className="w-12 h-12 text-brand-600 animate-spin opacity-40" />
+                  <p className="text-xs font-black text-slate-300 uppercase tracking-widest">Chargement du flux SaaS...</p>
+              </div>
+          ) : filteredSales.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-[500px] text-slate-300 gap-4">
+                  <HistoryIcon className="w-16 h-16 opacity-10" />
+                  <p className="font-bold uppercase text-[10px] tracking-[0.2em]">Aucun mouvement enregistré</p>
+              </div>
+          ) : (
+              <div className="overflow-x-auto">
+                  <table className="w-full text-left min-w-[900px]">
+                      <thead>
+                          <tr className="border-b border-slate-50 bg-slate-50/30 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                              <th className="px-6 md:px-10 py-6">CHRONO</th>
+                              {(currentUser?.role === UserRole.ADMIN_GLOBAL || agencyFilter === 'ALL') && <th className="px-6 md:px-10 py-6">AGENCE</th>}
+                              <th className="px-6 md:px-10 py-6">OPÉRATEUR</th>
+                              <th className="px-6 md:px-10 py-6">CODE TICKET</th>
+                              <th className="px-6 md:px-10 py-6 text-right">MONTANT</th>
+                              <th className="px-6 md:px-10 py-6"></th>
+                          </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                          {filteredSales.map((sale) => (
+                              <tr key={sale.id} onClick={() => setSelectedSale(sale)} className="hover:bg-brand-50/30 transition-all group cursor-pointer">
+                                  <td className="px-6 md:px-10 py-6 md:py-8">
+                                      <div className="flex items-center gap-3">
+                                          <Calendar className="w-4 h-4 text-slate-200" />
+                                          <div>
+                                              <p className="text-xs font-black text-slate-900">{new Date(sale.sold_at).toLocaleDateString('fr-FR')}</p>
+                                              <p className="text-[10px] font-bold text-slate-400">{new Date(sale.sold_at).toLocaleTimeString('fr-FR')}</p>
+                                          </div>
+                                      </div>
+                                  </td>
+                                  {(currentUser?.role === UserRole.ADMIN_GLOBAL || agencyFilter === 'ALL') && (
+                                      <td className="px-6 md:px-10 py-6 md:py-8">
+                                          <span className="text-[10px] font-black text-brand-500 uppercase bg-brand-50 px-3 py-1.5 rounded-xl border border-brand-100">{sale.tenants?.name}</span>
+                                      </td>
+                                  )}
+                                  <td className="px-6 md:px-10 py-6 md:py-8">
+                                      <p className="text-xs font-black text-slate-800">{sale.users?.full_name}</p>
+                                      <p className="text-[9px] font-bold text-slate-400 uppercase">Agent</p>
+                                  </td>
+                                  <td className="px-6 md:px-10 py-6 md:py-8">
+                                      <p className="font-black text-slate-900 text-lg tracking-tighter leading-none mb-1 group-hover:text-brand-600 transition-colors">{sale.tickets?.username}</p>
+                                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{sale.tickets?.ticket_profiles?.name}</p>
+                                  </td>
+                                  <td className="px-6 md:px-10 py-6 md:py-8 text-right">
+                                      <p className="font-black text-slate-900 text-lg">{Number(sale.amount_paid).toLocaleString()} GNF</p>
+                                      <p className="text-[9px] font-bold text-emerald-600 uppercase">Encaissé</p>
+                                  </td>
+                                  <td className="px-6 md:px-10 py-6 md:py-8 text-right">
+                                      <div className="flex items-center justify-end gap-2">
+                                          <div className="p-3 bg-white text-slate-200 rounded-2xl group-hover:bg-brand-600 group-hover:text-white transition-all shadow-sm border border-slate-100 group-hover:border-brand-600">
+                                              <Info className="w-4 h-4" />
+                                          </div>
+                                      </div>
+                                  </td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
+              </div>
+          )}
+      </div>
+
+      {selectedSale && !saleToCancel && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center p-4 animate-in fade-in duration-300">
+              <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" onClick={() => setSelectedSale(null)} />
+              <div className="bg-white w-full max-w-[440px] rounded-[3.5rem] shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                  <div className="bg-slate-900 p-8 md:p-12 text-center text-white relative">
+                      <button onClick={() => setSelectedSale(null)} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors p-2"><X className="w-6 h-6" /></button>
+                      <div className="w-20 h-20 bg-brand-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 border border-brand-500/20"><QrCode className="w-10 h-10 text-brand-400" /></div>
+                      <h2 className="text-xl font-black tracking-widest uppercase">Fiche Transaction</h2>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">Référence ID: {selectedSale.id.split('-')[0]}</p>
+                  </div>
+                  <div className="p-8 md:p-10 space-y-6 md:space-y-8">
+                      <div className="bg-slate-50 rounded-[2.5rem] p-8 md:p-10 text-center border-2 border-dashed border-slate-200 relative">
+                          <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-1 h-1.5 w-16 bg-brand-500 rounded-full"></div>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">CODE VOUCHER</p>
+                          <p className="text-4xl md:text-5xl font-black text-slate-900 tracking-[0.2em] mb-8 leading-none break-all">{selectedSale.tickets?.username}</p>
+                          <div className="grid grid-cols-2 gap-4 text-left border-t border-slate-100 pt-8">
+                              <div><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Agence Source</p><p className="text-xs font-black text-slate-800">{selectedSale.tenants?.name}</p></div>
+                              <div className="text-right"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Offre</p><p className="text-xs font-black text-brand-600">{selectedSale.tickets?.ticket_profiles?.name}</p></div>
+                          </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                          <button onClick={handleWhatsAppShare} className="py-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl transition-all transform active:scale-95"><Share2 className="w-4 h-4" /> WHATSAPP</button>
+                          <button onClick={handlePrint} className="py-5 bg-slate-900 hover:bg-black text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl transition-all transform active:scale-95"><Printer className="w-4 h-4" /> IMPRIMER</button>
+                          <button onClick={() => initiateCancellation(selectedSale)} className="col-span-2 py-5 bg-white border border-red-100 text-red-500 hover:bg-red-50 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all"><RotateCcw className="w-4 h-4" /> RÉVOQUER / ANNULER</button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {saleToCancel && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in"><div className="absolute inset-0 bg-red-950/80 backdrop-blur-md" onClick={() => !isProcessing && setSaleToCancel(null)} /><div className="bg-white w-full max-w-sm rounded-[3rem] p-10 text-center relative z-10 animate-in zoom-in-95 border-t-8 border-red-600 shadow-2xl"><div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner"><AlertTriangle className="w-10 h-10" /></div><h3 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">Annuler la Vente ?</h3><p className="text-slate-500 text-sm mb-10 leading-relaxed font-medium">Le ticket <strong>{saleToCancel.tickets?.username}</strong> redeviendra disponible en stock. {saleToCancel.users?.full_name && ` Le solde du revendeur sera recrédité.`}</p><div className="space-y-3"><button onClick={confirmCancellation} disabled={isProcessing} className="w-full py-5 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl transition-all transform active:scale-95">{isProcessing ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "OUI, ANNULER LA VENTE"}</button><button onClick={() => setSaleToCancel(null)} disabled={isProcessing} className="w-full py-5 bg-slate-100 text-slate-400 hover:text-slate-600 rounded-2xl font-black text-xs uppercase transition-colors">IGNORER</button></div></div></div>)}
     </div>
   );
