@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Search, CloudUpload, Trash2, Loader2, AlertCircle, AlertTriangle, CheckCircle2, Building2 } from 'lucide-react';
+import { Search, CloudUpload, Trash2, Loader2, AlertCircle, AlertTriangle, CheckCircle2, Building2, UserX } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
 import { UserRole, TicketStatus } from '../types';
@@ -14,8 +14,15 @@ const Stock: React.FC = () => {
   const [agencies, setAgencies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  
+  // États pour la suppression
   const [ticketToDelete, setTicketToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // États pour la désassignation (Retrait revendeur)
+  const [ticketToUnassign, setTicketToUnassign] = useState<any | null>(null);
+  const [isUnassigning, setIsUnassigning] = useState(false);
+
   const [toast, setToast] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   useEffect(() => { fetchInitialData(); }, []);
@@ -41,7 +48,20 @@ const Stock: React.FC = () => {
     if (!currentUser) return;
     try {
       setLoading(true);
-      let query = db.from('tickets').select(`id, username, password, status, imported_at, tenants(name), ticket_profiles(name, price)`).order('imported_at', { ascending: false });
+      // On récupère aussi le nom du revendeur assigné pour l'affichage
+      let query = db.from('tickets')
+        .select(`
+            id, 
+            username, 
+            password, 
+            status, 
+            imported_at, 
+            assigned_to,
+            tenants(name), 
+            ticket_profiles(name, price),
+            users!tickets_assigned_to_fkey(full_name)
+        `)
+        .order('imported_at', { ascending: false });
       
       const isReseller = currentUser.role === UserRole.REVENDEUR;
 
@@ -77,6 +97,7 @@ const Stock: React.FC = () => {
 
   const showToast = (type: 'success' | 'error', message: string) => { setToast({ type, message }); setTimeout(() => setToast(null), 3000); };
   
+  // Logique Suppression (Ticket NEUF uniquement)
   const handleVerifyDelete = (ticket: any) => { 
     if (currentUser?.role === UserRole.REVENDEUR) { showToast('error', "Action refusée."); return; } 
     if (ticket.status !== TicketStatus.NEUF) { showToast('error', "Impossible de supprimer un ticket vendu ou assigné."); return; } 
@@ -99,6 +120,40 @@ const Stock: React.FC = () => {
     } 
   };
 
+  // Logique Désassignation (Retirer du revendeur -> Retour au stock Agence)
+  const handleVerifyUnassign = (ticket: any) => {
+    if (currentUser?.role === UserRole.REVENDEUR) return;
+    setTicketToUnassign(ticket);
+  };
+
+  const performUnassign = async () => {
+    if (!ticketToUnassign) return;
+    setIsUnassigning(true);
+    try {
+        // On remet le statut à NEUF et on retire l'assigned_to
+        const { error } = await db.from('tickets')
+            .update({ status: TicketStatus.NEUF, assigned_to: null })
+            .eq('id', ticketToUnassign.id);
+            
+        if (error) throw error;
+        
+        // Mise à jour locale
+        setTickets(prev => prev.map(t => {
+            if (t.id === ticketToUnassign.id) {
+                return { ...t, status: TicketStatus.NEUF, assigned_to: null, users: null };
+            }
+            return t;
+        }));
+        
+        showToast('success', "Ticket retiré du revendeur et remis en stock.");
+        setTicketToUnassign(null);
+    } catch (err: any) {
+        showToast('error', err.message);
+    } finally {
+        setIsUnassigning(false);
+    }
+  };
+
   const isReseller = currentUser?.role === UserRole.REVENDEUR;
 
   return (
@@ -117,7 +172,7 @@ const Stock: React.FC = () => {
                 statusLabel = 'EN STOCK';
                 statusColor = 'bg-indigo-50 text-indigo-500';
             } else {
-                statusLabel = 'ASSIGNÉ';
+                statusLabel = `CHEZ ${item.users?.full_name?.split(' ')[0] || 'REVENDEUR'}`;
                 statusColor = 'bg-purple-50 text-purple-600';
             }
         }
@@ -129,11 +184,58 @@ const Stock: React.FC = () => {
             <td className="px-8 py-6 font-black text-xs text-indigo-500 uppercase">{item.ticket_profiles?.name}</td>
             <td className="px-8 py-6 font-black text-slate-900 text-right">{Number(item.ticket_profiles?.price).toLocaleString()} GNF</td>
             <td className="px-8 py-6 text-center"><span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${statusColor}`}>{statusLabel}</span></td>
-            {currentUser?.role !== UserRole.REVENDEUR && currentUser?.role !== UserRole.ADMIN_GLOBAL && (<td className="px-8 py-6 text-right"><button onClick={() => handleVerifyDelete(item)} disabled={item.status === TicketStatus.VENDU || item.status === TicketStatus.ASSIGNE} className={`p-2 rounded-lg transition-all ${(item.status === TicketStatus.VENDU || item.status === TicketStatus.ASSIGNE) ? 'text-slate-100 opacity-20' : 'text-slate-300 hover:text-red-600 hover:bg-red-50'}`}><Trash2 className="w-4 h-4" /></button></td>)}
+            {currentUser?.role !== UserRole.REVENDEUR && currentUser?.role !== UserRole.ADMIN_GLOBAL && (
+                <td className="px-8 py-6 text-right">
+                    {item.status === TicketStatus.ASSIGNE ? (
+                        <button 
+                            onClick={() => handleVerifyUnassign(item)} 
+                            title="Retirer du revendeur (Remettre en stock)"
+                            className="p-2 rounded-lg transition-all text-orange-400 hover:text-orange-600 hover:bg-orange-50 bg-white shadow-sm border border-slate-100"
+                        >
+                            <UserX className="w-4 h-4" />
+                        </button>
+                    ) : (
+                        <button 
+                            onClick={() => handleVerifyDelete(item)} 
+                            disabled={item.status === TicketStatus.VENDU} 
+                            className={`p-2 rounded-lg transition-all ${(item.status === TicketStatus.VENDU) ? 'text-slate-100 opacity-20' : 'text-slate-300 hover:text-red-600 hover:bg-red-50'}`}
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    )}
+                </td>
+            )}
           </tr>
         );
       })}</tbody></table></div></div>
+      
+      {/* Modal Suppression */}
       {ticketToDelete && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4"><div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !isDeleting && setTicketToDelete(null)} /><div className="bg-white w-full max-w-sm rounded-[3rem] p-10 text-center relative z-10 animate-in zoom-in-95 shadow-2xl"><div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6"><AlertTriangle className="w-10 h-10" /></div><h3 className="text-2xl font-black text-slate-900 mb-2 uppercase">Supprimer ?</h3><p className="text-slate-500 text-sm mb-8">Action irréversible sur le ticket <strong>{ticketToDelete.username}</strong>.</p><div className="space-y-3"><button onClick={performDelete} disabled={isDeleting} className="w-full py-5 bg-red-600 text-white rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-red-700">{isDeleting ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "OUI, SUPPRIMER"}</button><button onClick={() => setTicketToDelete(null)} className="w-full py-5 bg-slate-100 text-slate-400 rounded-2xl font-black text-xs uppercase">ANNULER</button></div></div></div>)}
+    
+      {/* Modal Désassignation */}
+      {ticketToUnassign && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !isUnassigning && setTicketToUnassign(null)} />
+              <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 text-center relative z-10 animate-in zoom-in-95 shadow-2xl">
+                  <div className="w-20 h-20 bg-orange-50 text-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <UserX className="w-10 h-10" />
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-900 mb-2 uppercase">Retirer Ticket ?</h3>
+                  <p className="text-slate-500 text-sm mb-4 leading-relaxed">
+                      Le ticket <strong>{ticketToUnassign.username}</strong> sera retiré du revendeur <span className="text-slate-900 font-bold">{ticketToUnassign.users?.full_name}</span>.
+                  </p>
+                  <p className="text-xs font-bold text-emerald-600 bg-emerald-50 py-2 px-4 rounded-xl mb-8">Il retournera dans votre stock principal (Statut: NEUF).</p>
+                  <div className="space-y-3">
+                      <button onClick={performUnassign} disabled={isUnassigning} className="w-full py-5 bg-orange-500 text-white rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-orange-600 transition-all active:scale-95 flex items-center justify-center gap-2">
+                          {isUnassigning ? <Loader2 className="w-5 h-5 animate-spin" /> : "CONFIRMER LE RETRAIT"}
+                      </button>
+                      <button onClick={() => setTicketToUnassign(null)} disabled={isUnassigning} className="w-full py-5 bg-slate-100 text-slate-400 rounded-2xl font-black text-xs uppercase hover:bg-slate-200 transition-all">
+                          ANNULER
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

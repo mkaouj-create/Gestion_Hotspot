@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Users, Wallet, Plus, Search, Loader2, TrendingUp, TrendingDown, ArrowRight, History, Ticket, DollarSign, X, Building2, CheckCircle2, AlertCircle, Smartphone, Filter, LayoutGrid, List, Calendar, CreditCard, UserCircle } from 'lucide-react';
+import { Users, Wallet, Plus, Search, Loader2, TrendingUp, TrendingDown, ArrowRight, History, Ticket, DollarSign, X, Building2, CheckCircle2, AlertCircle, Smartphone, Filter, LayoutGrid, List, Calendar, CreditCard, UserCircle, ClipboardList, Tag } from 'lucide-react';
 import { db } from '../services/db';
 import { UserRole, User, TicketStatus } from '../types';
 
@@ -15,6 +15,7 @@ const Resellers: React.FC = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showStockHistoryModal, setShowStockHistoryModal] = useState(false); // New Modal State
   
   const [selectedReseller, setSelectedReseller] = useState<User | null>(null);
   
@@ -31,6 +32,7 @@ const Resellers: React.FC = () => {
   // Data States
   const [processing, setProcessing] = useState(false);
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
+  const [stockHistory, setStockHistory] = useState<any[]>([]); // New Data State
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [toast, setToast] = useState<any>(null);
 
@@ -102,7 +104,6 @@ const Resellers: React.FC = () => {
   const fetchPaymentHistoryData = async (resellerId: string) => {
     setLoadingHistory(true);
     try {
-      // On suppose que la relation users!created_by existe (ou on la simule si besoin de jointure manuelle)
       const { data, error } = await db.from('payments')
         .select('*, users!payments_created_by_fkey(full_name)') 
         .eq('reseller_id', resellerId)
@@ -118,10 +119,35 @@ const Resellers: React.FC = () => {
     }
   };
 
+  const fetchStockHistoryData = async (resellerId: string) => {
+    setLoadingHistory(true);
+    try {
+        // Récupère les tickets assignés à ce revendeur OU vendus par lui
+        const { data, error } = await db.from('tickets')
+            .select('id, username, status, sold_at, imported_at, ticket_profiles(name, price)')
+            .or(`assigned_to.eq.${resellerId},sold_by.eq.${resellerId}`)
+            .order('sold_at', { ascending: false, nullsFirst: true }); // Les vendus en premier, puis le stock
+
+        if (error) throw error;
+        setStockHistory(data || []);
+    } catch (err: any) {
+        console.error(err);
+        setToast({ type: 'error', message: "Impossible de charger l'historique des tickets." });
+    } finally {
+        setLoadingHistory(false);
+    }
+  };
+
   const openHistory = (reseller: User) => {
       setSelectedReseller(reseller);
       setShowHistoryModal(true);
       fetchPaymentHistoryData(reseller.id);
+  };
+
+  const openStockHistory = (reseller: User) => {
+      setSelectedReseller(reseller);
+      setShowStockHistoryModal(true);
+      fetchStockHistoryData(reseller.id);
   };
 
   const prepareAssign = async (reseller: User) => {
@@ -264,7 +290,10 @@ const Resellers: React.FC = () => {
                                 <button onClick={() => { setSelectedReseller(reseller); setShowPaymentModal(true); setMethod('CASH'); setPaymentPhone(''); }} className="py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 active:scale-95"><DollarSign className="w-4 h-4" /> RECHARGER</button>
                                 <button onClick={() => prepareAssign(reseller)} className="py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 active:scale-95"><Ticket className="w-4 h-4" /> ASSIGNER</button>
                             </div>
-                            <button onClick={() => openHistory(reseller)} className="w-full py-4 bg-white border border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-300 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2"><History className="w-4 h-4" /> HISTORIQUE</button>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button onClick={() => openHistory(reseller)} className="w-full py-4 bg-white border border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-300 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2"><History className="w-4 h-4" /> PAIEMENTS</button>
+                                <button onClick={() => openStockHistory(reseller)} className="w-full py-4 bg-white border border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-300 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2"><ClipboardList className="w-4 h-4" /> SUIVI STOCK</button>
+                            </div>
                         </div>
                     </div>
                 ))}
@@ -312,9 +341,10 @@ const Resellers: React.FC = () => {
                                     </td>
                                     <td className="px-10 py-6 text-right">
                                         <div className="flex justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => { setSelectedReseller(reseller); setShowPaymentModal(true); setMethod('CASH'); setPaymentPhone(''); }} className="p-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl transition-all shadow-sm"><DollarSign className="w-4 h-4" /></button>
-                                            <button onClick={() => prepareAssign(reseller)} className="p-2.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl transition-all shadow-sm"><Ticket className="w-4 h-4" /></button>
-                                            <button onClick={() => openHistory(reseller)} className="p-2.5 bg-slate-50 text-slate-500 hover:bg-slate-900 hover:text-white rounded-xl transition-all shadow-sm"><History className="w-4 h-4" /></button>
+                                            <button onClick={() => { setSelectedReseller(reseller); setShowPaymentModal(true); setMethod('CASH'); setPaymentPhone(''); }} title="Recharger" className="p-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl transition-all shadow-sm"><DollarSign className="w-4 h-4" /></button>
+                                            <button onClick={() => prepareAssign(reseller)} title="Assigner Stock" className="p-2.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl transition-all shadow-sm"><Ticket className="w-4 h-4" /></button>
+                                            <button onClick={() => openStockHistory(reseller)} title="Suivi Stock" className="p-2.5 bg-orange-50 text-orange-600 hover:bg-orange-600 hover:text-white rounded-xl transition-all shadow-sm"><ClipboardList className="w-4 h-4" /></button>
+                                            <button onClick={() => openHistory(reseller)} title="Historique Paiements" className="p-2.5 bg-slate-50 text-slate-500 hover:bg-slate-900 hover:text-white rounded-xl transition-all shadow-sm"><History className="w-4 h-4" /></button>
                                         </div>
                                     </td>
                                 </tr>
@@ -361,7 +391,7 @@ const Resellers: React.FC = () => {
         </div>
       )}
 
-      {/* --- HISTORY MODAL --- */}
+      {/* --- PAYMENT HISTORY MODAL --- */}
       {showHistoryModal && selectedReseller && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in">
               <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowHistoryModal(false)} />
@@ -404,6 +434,79 @@ const Resellers: React.FC = () => {
                                       </div>
                                   </div>
                               ))}
+                          </div>
+                      )}
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* --- STOCK ASSIGNMENT HISTORY MODAL (NEW) --- */}
+      {showStockHistoryModal && selectedReseller && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in">
+              <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowStockHistoryModal(false)} />
+              <div className="bg-white w-full max-w-2xl max-h-[80vh] rounded-[3rem] p-10 relative z-10 animate-in zoom-in-95 shadow-2xl flex flex-col">
+                  <div className="flex items-center justify-between mb-8 shrink-0">
+                      <div>
+                          <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Suivi du Stock / Assignations</h2>
+                          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Pour {selectedReseller.full_name}</p>
+                      </div>
+                      <button onClick={() => setShowStockHistoryModal(false)} className="p-2 text-slate-300 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all"><X className="w-6 h-6" /></button>
+                  </div>
+
+                  {/* Stats Rapides */}
+                  <div className="flex gap-4 mb-6 shrink-0 overflow-x-auto pb-2">
+                     <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl min-w-[140px]">
+                        <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Stock Actuel</p>
+                        <p className="text-2xl font-black text-indigo-900">{stockHistory.filter(t => t.status === TicketStatus.ASSIGNE).length}</p>
+                     </div>
+                     <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl min-w-[140px]">
+                        <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1">Total Vendus</p>
+                        <p className="text-2xl font-black text-emerald-900">{stockHistory.filter(t => t.status === TicketStatus.VENDU).length}</p>
+                     </div>
+                  </div>
+
+                  <div className="overflow-y-auto custom-scrollbar grow -mx-4 px-4">
+                      {loadingHistory ? (
+                          <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-slate-200" /></div>
+                      ) : stockHistory.length === 0 ? (
+                          <div className="py-20 text-center flex flex-col items-center gap-4 text-slate-300">
+                              <Ticket className="w-12 h-12 opacity-20" />
+                              <p className="font-bold uppercase text-[10px] tracking-widest">Aucun ticket assigné</p>
+                          </div>
+                      ) : (
+                          <div className="space-y-3">
+                              {stockHistory.map((ticket) => {
+                                  const isSold = ticket.status === TicketStatus.VENDU;
+                                  return (
+                                    <div key={ticket.id} className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 flex items-center justify-between hover:bg-slate-100 transition-colors">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 ${isSold ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                                                {isSold ? <CheckCircle2 className="w-4 h-4" /> : <Ticket className="w-4 h-4" />}
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-slate-900">{ticket.username}</p>
+                                                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                    <Tag className="w-3 h-3" />
+                                                    <span>{ticket.ticket_profiles?.name}</span>
+                                                    <span>•</span>
+                                                    <span>{Number(ticket.ticket_profiles?.price).toLocaleString()} GNF</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className={`inline-block px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest mb-1 ${isSold ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                                                {isSold ? 'VENDU' : 'EN STOCK'}
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 font-medium">
+                                                {isSold 
+                                                    ? (ticket.sold_at ? new Date(ticket.sold_at).toLocaleDateString() : '-') 
+                                                    : 'Non vendu'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                  );
+                              })}
                           </div>
                       )}
                   </div>
