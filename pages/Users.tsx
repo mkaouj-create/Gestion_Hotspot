@@ -45,6 +45,12 @@ const Users: React.FC = () => {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleHardDelete = async () => {
+    // Sécurité : Un agent ne peut pas supprimer
+    if (currentUserProfile?.role === UserRole.AGENT) {
+        notify('error', "Action non autorisée pour les agents.");
+        return;
+    }
+
     if (!userToDelete || confirmDeleteText !== 'SUPPRIMER') return;
     setIsDeleting(true);
     try {
@@ -68,6 +74,12 @@ const Users: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Sécurité : Un agent ne peut pas créer ou modifier
+    if (currentUserProfile?.role === UserRole.AGENT) {
+        notify('error', "Action non autorisée pour les agents.");
+        return;
+    }
+
     if (isSubmitting || !currentUserProfile) return;
     setIsSubmitting(true);
     try {
@@ -112,7 +124,13 @@ const Users: React.FC = () => {
                 <button onClick={() => setViewMode('CARDS')} className={`p-3 rounded-xl transition-all ${viewMode === 'CARDS' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid className="w-5 h-5" /></button>
                 <button onClick={() => setViewMode('TABLE')} className={`p-3 rounded-xl transition-all ${viewMode === 'TABLE' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List className="w-5 h-5" /></button>
             </div>
-            <button onClick={() => { setEditingUser(null); setFormData({fullName: '', email: '', password: '', role: UserRole.REVENDEUR}); setShowModal(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 shadow-xl shadow-indigo-200 transition-all active:scale-95"><UserPlus className="w-4 h-4" /> Nouveau Membre</button>
+            
+            {/* Masquer le bouton d'ajout pour les Agents */}
+            {currentUserProfile?.role !== UserRole.AGENT && (
+                <button onClick={() => { setEditingUser(null); setFormData({fullName: '', email: '', password: '', role: UserRole.REVENDEUR}); setShowModal(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 shadow-xl shadow-indigo-200 transition-all active:scale-95">
+                    <UserPlus className="w-4 h-4" /> Nouveau Membre
+                </button>
+            )}
         </div>
       </div>
 
@@ -170,12 +188,21 @@ const Users: React.FC = () => {
                                         </div>
                                     </div>
                                 </div>
+                                
+                                {/* Actions Cards : Masquées pour les Agents */}
                                 <div className="grid grid-cols-2 gap-3 mt-auto">
-                                    <button onClick={() => { setEditingUser(user); setFormData({fullName: user.full_name, email: user.email, password:'', role: user.role}); setShowModal(true); }} className="py-3 bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm"><Pencil className="w-3 h-3" /> MODIFIER</button>
-                                    {user.id !== currentUserProfile?.id ? (
-                                        <button onClick={() => setUserToDelete(user)} className="py-3 bg-white border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm"><Trash2 className="w-3 h-3" /> SUPPRIMER</button>
-                                    ) : (
-                                        <div className="py-3 bg-slate-50 text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest text-center border border-slate-100">VOUS</div>
+                                    {currentUserProfile?.role !== UserRole.AGENT && (
+                                        <>
+                                            <button onClick={() => { setEditingUser(user); setFormData({fullName: user.full_name, email: user.email, password:'', role: user.role}); setShowModal(true); }} className="py-3 bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm"><Pencil className="w-3 h-3" /> MODIFIER</button>
+                                            {user.id !== currentUserProfile?.id ? (
+                                                <button onClick={() => setUserToDelete(user)} className="py-3 bg-white border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm"><Trash2 className="w-3 h-3" /> SUPPRIMER</button>
+                                            ) : (
+                                                <div className="py-3 bg-slate-50 text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest text-center border border-slate-100">VOUS</div>
+                                            )}
+                                        </>
+                                    )}
+                                    {currentUserProfile?.role === UserRole.AGENT && (
+                                         <div className="col-span-2 py-3 bg-slate-50 text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-widest text-center border border-slate-100">Lecture Seule</div>
                                     )}
                                 </div>
                             </div>
@@ -195,11 +222,15 @@ const Users: React.FC = () => {
                                     <th className="px-10 py-6">RÔLE</th>
                                     <th className="px-10 py-6">PERFORMANCE</th>
                                     <th className="px-10 py-6">SOLDE</th>
-                                    <th className="px-10 py-6 text-right">ACTIONS</th>
+                                    {currentUserProfile?.role !== UserRole.AGENT && <th className="px-10 py-6 text-right">ACTIONS</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
-                                {filteredUsers.map((user) => { const role = getRoleInfo(user.role); const RoleIcon = role.icon; return (<tr key={user.id} className="group hover:bg-indigo-50/30 transition-colors"><td className="px-10 py-6"><div className="flex items-center gap-4"><div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 font-black text-lg shadow-inner group-hover:bg-white group-hover:scale-110 transition-all">{user.full_name.charAt(0)}</div><div><p className="font-black text-slate-900 text-sm">{user.full_name}</p><div className="flex items-center gap-1.5 text-slate-400 mt-0.5"><Mail className="w-3 h-3" /><p className="text-[10px] font-bold truncate max-w-[150px]">{user.email}</p></div></div></div></td>{currentUserProfile?.role === UserRole.ADMIN_GLOBAL && (<td className="px-10 py-6"><div className="flex items-center gap-2"><Building2 className="w-4 h-4 text-slate-300" /><span className="text-xs font-bold text-slate-600 uppercase">{(user.tenants as any)?.name || 'N/A'}</span></div></td>)}<td className="px-10 py-6"><div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border ${role.color}`}><RoleIcon className="w-3.5 h-3.5" /><span className="text-[9px] font-black uppercase tracking-wide">{role.label}</span></div></td><td className="px-10 py-6"><div className="flex flex-col"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chiffre d'affaires</span><span className="text-sm font-black text-slate-900">{user.total_revenue.toLocaleString()} GNF</span></div></td><td className="px-10 py-6">{user.role === UserRole.REVENDEUR ? (<div className="flex items-center gap-2"><Wallet className={`w-4 h-4 ${user.balance < 0 ? 'text-red-500' : 'text-emerald-500'}`} /><span className={`text-sm font-black ${user.balance < 0 ? 'text-red-500' : 'text-emerald-600'}`}>{user.balance?.toLocaleString() || 0} GNF</span></div>) : (<span className="text-slate-300">-</span>)}</td><td className="px-10 py-6 text-right"><div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => { setEditingUser(user); setFormData({fullName: user.full_name, email: user.email, password:'', role: user.role}); setShowModal(true); }} className="p-2.5 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 transition-all shadow-sm"><Pencil className="w-4 h-4" /></button>{user.id !== currentUserProfile?.id && (<button onClick={() => setUserToDelete(user)} className="p-2.5 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-red-600 hover:border-red-100 transition-all shadow-sm"><Trash2 className="w-4 h-4" /></button>)}</div></td></tr>); })}
+                                {filteredUsers.map((user) => { const role = getRoleInfo(user.role); const RoleIcon = role.icon; return (<tr key={user.id} className="group hover:bg-indigo-50/30 transition-colors"><td className="px-10 py-6"><div className="flex items-center gap-4"><div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 font-black text-lg shadow-inner group-hover:bg-white group-hover:scale-110 transition-all">{user.full_name.charAt(0)}</div><div><p className="font-black text-slate-900 text-sm">{user.full_name}</p><div className="flex items-center gap-1.5 text-slate-400 mt-0.5"><Mail className="w-3 h-3" /><p className="text-[10px] font-bold truncate max-w-[150px]">{user.email}</p></div></div></div></td>{currentUserProfile?.role === UserRole.ADMIN_GLOBAL && (<td className="px-10 py-6"><div className="flex items-center gap-2"><Building2 className="w-4 h-4 text-slate-300" /><span className="text-xs font-bold text-slate-600 uppercase">{(user.tenants as any)?.name || 'N/A'}</span></div></td>)}<td className="px-10 py-6"><div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border ${role.color}`}><RoleIcon className="w-3.5 h-3.5" /><span className="text-[9px] font-black uppercase tracking-wide">{role.label}</span></div></td><td className="px-10 py-6"><div className="flex flex-col"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chiffre d'affaires</span><span className="text-sm font-black text-slate-900">{user.total_revenue.toLocaleString()} GNF</span></div></td><td className="px-10 py-6">{user.role === UserRole.REVENDEUR ? (<div className="flex items-center gap-2"><Wallet className={`w-4 h-4 ${user.balance < 0 ? 'text-red-500' : 'text-emerald-500'}`} /><span className={`text-sm font-black ${user.balance < 0 ? 'text-red-500' : 'text-emerald-600'}`}>{user.balance?.toLocaleString() || 0} GNF</span></div>) : (<span className="text-slate-300">-</span>)}</td>
+                                {currentUserProfile?.role !== UserRole.AGENT && (
+                                    <td className="px-10 py-6 text-right"><div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => { setEditingUser(user); setFormData({fullName: user.full_name, email: user.email, password:'', role: user.role}); setShowModal(true); }} className="p-2.5 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-indigo-600 hover:border-indigo-100 transition-all shadow-sm"><Pencil className="w-4 h-4" /></button>{user.id !== currentUserProfile?.id && (<button onClick={() => setUserToDelete(user)} className="p-2.5 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-red-600 hover:border-red-100 transition-all shadow-sm"><Trash2 className="w-4 h-4" /></button>)}</div></td>
+                                )}
+                                </tr>); })}
                             </tbody>
                         </table>
                     </div>
