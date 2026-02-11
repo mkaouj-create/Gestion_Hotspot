@@ -14,12 +14,19 @@ const Import: React.FC = () => {
   const [parsedData, setParsedData] = useState<any[]>([]);
   const [importSummary, setImportSummary] = useState({ success: 0, duplicates: 0 });
   const [tenantId, setTenantId] = useState<string>('');
+  const [currency, setCurrency] = useState('GNF');
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    db.auth.getUser().then(({ data: { user } }) => {
-      if (user) db.from('users').select('tenant_id').eq('id', user.id).single().then(({ data }) => setTenantId(data?.tenant_id || ''));
-    });
+    const fetchContext = async () => {
+        const { data: { user } } = await db.auth.getUser();
+        if (user) {
+            const { data } = await db.from('users').select('tenant_id, tenants(currency)').eq('id', user.id).single();
+            setTenantId(data?.tenant_id || '');
+            setCurrency((data?.tenants as any)?.currency || 'GNF');
+        }
+    };
+    fetchContext();
   }, []);
 
   const handleFile = (selectedFile: File) => {
@@ -118,7 +125,7 @@ const Import: React.FC = () => {
       <header className="flex items-center gap-4"><div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center shadow-lg"><CloudUpload /></div><h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Importation</h1></header>
       {error && <div className="p-5 bg-red-50 border border-red-100 rounded-3xl text-red-600 font-bold text-sm flex gap-3"><AlertTriangle /> {error}</div>}
       {step === 1 && (<div className="bg-white p-12 rounded-[3.5rem] border border-slate-100 text-center space-y-8"><div className="border-4 border-dashed border-slate-100 rounded-[3rem] p-20 bg-slate-50/30 hover:bg-slate-50 transition-colors relative cursor-pointer group"><input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} accept=".csv" /><CloudUpload className="w-16 h-16 mx-auto mb-6 text-slate-200 group-hover:text-brand-600 transition-colors" /><p className="font-black text-slate-400 group-hover:text-slate-900">{file ? file.name : "Cliquez ou glissez votre CSV MikroTik ici"}</p></div>{file && <button onClick={parseCSV} className="w-full py-5 bg-brand-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Analyser le fichier</button>}</div>)}
-      {step === 2 && (<div className="space-y-6"><div className="bg-white p-10 rounded-[3rem] border border-slate-100 space-y-8"><h3 className="font-black text-xl uppercase tracking-tight">Configuration des prix</h3><div className="space-y-4">{profiles.map(p => (<div key={p.id} className="flex items-center justify-between p-6 bg-slate-50 rounded-2xl border border-slate-100"><span className="font-black text-slate-700">{p.name}</span><input type="number" placeholder="Prix (ex: 2000)" value={p.price} onChange={e => setProfiles(prev => prev.map(x => x.id === p.id ? {...x, price: e.target.value} : x))} className="w-40 p-3 rounded-xl border border-slate-200 outline-none focus:ring-4 focus:ring-brand-50 font-black text-right" /></div>))}</div>{isSubmitting && <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-brand-600 transition-all" style={{width: `${progress}%`}} /></div>}<button onClick={runImport} disabled={isSubmitting} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest shadow-2xl flex items-center justify-center gap-3">{isSubmitting ? <Loader2 className="animate-spin" /> : "Lancer l'importation"}</button></div></div>)}
+      {step === 2 && (<div className="space-y-6"><div className="bg-white p-10 rounded-[3rem] border border-slate-100 space-y-8"><h3 className="font-black text-xl uppercase tracking-tight">Configuration des prix ({currency})</h3><div className="space-y-4">{profiles.map(p => (<div key={p.id} className="flex items-center justify-between p-6 bg-slate-50 rounded-2xl border border-slate-100"><span className="font-black text-slate-700">{p.name}</span><div className="relative"><input type="number" placeholder="0" value={p.price} onChange={e => setProfiles(prev => prev.map(x => x.id === p.id ? {...x, price: e.target.value} : x))} className="w-40 p-3 pr-12 rounded-xl border border-slate-200 outline-none focus:ring-4 focus:ring-brand-50 font-black text-right" /><span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">{currency}</span></div></div>))}</div>{isSubmitting && <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-brand-600 transition-all" style={{width: `${progress}%`}} /></div>}<button onClick={runImport} disabled={isSubmitting} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest shadow-2xl flex items-center justify-center gap-3">{isSubmitting ? <Loader2 className="animate-spin" /> : "Lancer l'importation"}</button></div></div>)}
       {step === 3 && (<div className="bg-white p-16 rounded-[4rem] border border-slate-100 text-center animate-in zoom-in-95"><CheckCircle2 className="w-24 h-24 text-emerald-500 mx-auto mb-8" /><h2 className="text-4xl font-black text-slate-900 mb-2">Importation Terminée</h2><div className="flex justify-center gap-8 py-10"><div><p className="text-3xl font-black text-emerald-600">{importSummary.success}</p><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Importés</p></div><div><p className="text-3xl font-black text-orange-600">{importSummary.duplicates}</p><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Doublons</p></div></div><button onClick={() => navigate('/stock')} className="bg-brand-600 text-white px-10 py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl">Voir le stock</button></div>)}
     </div>
   );
