@@ -11,6 +11,7 @@ const Dashboard: React.FC = () => {
   const [recentSales, setRecentSales] = useState<any[]>([]);
   const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null);
   const [agencyName, setAgencyName] = useState<string>('');
+  const [currency, setCurrency] = useState('GNF');
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -18,11 +19,12 @@ const Dashboard: React.FC = () => {
       const { data: { user } } = await db.auth.getUser();
       if (!user) return;
 
-      const { data: profile } = await db.from('users').select('role, tenant_id, balance, tenants(name)').eq('id', user.id).maybeSingle();
+      const { data: profile } = await db.from('users').select('role, tenant_id, balance, tenants(name, currency)').eq('id', user.id).maybeSingle();
       if (!profile) return;
 
       setCurrentUserRole(profile.role as UserRole);
       setAgencyName((profile.tenants as any)?.name || 'Mon Agence');
+      setCurrency((profile.tenants as any)?.currency || 'GNF');
 
       const isAdminGlobal = profile.role === UserRole.ADMIN_GLOBAL;
       const isReseller = profile.role === UserRole.REVENDEUR;
@@ -123,7 +125,7 @@ const Dashboard: React.FC = () => {
         <StatCard 
             label={isAdminGlobal ? "Volume d'Affaires Global" : (isReseller ? "Vos Ventes (Total)" : "Chiffre d'Affaires")} 
             value={`${stats.revenue.toLocaleString()}`} 
-            unit="GNF" 
+            unit={currency} 
             icon={isAdminGlobal ? <Globe /> : <Wallet />} 
             color="text-brand-600" 
             bg="bg-brand-50" 
@@ -160,7 +162,7 @@ const Dashboard: React.FC = () => {
         )}
         
         {isReseller ? (
-             <StatCard label="Mon Solde (Prépayé)" value={stats.balance.toLocaleString()} unit="GNF" icon={<Wallet />} color={stats.balance < 50000 ? "text-red-600" : "text-emerald-600"} bg={stats.balance < 50000 ? "bg-red-50" : "bg-emerald-50"} border={stats.balance < 50000} />
+             <StatCard label="Mon Solde (Prépayé)" value={stats.balance.toLocaleString()} unit={currency} icon={<Wallet />} color={stats.balance < 50000 ? "text-red-600" : "text-emerald-600"} bg={stats.balance < 50000 ? "bg-red-50" : "bg-emerald-50"} border={stats.balance < 50000} />
         ) : isAdminGlobal ? (
              <StatCard 
                 label="Validations Requises" 
@@ -210,7 +212,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-right pl-2">
-                  <p className="font-black text-slate-900 text-sm whitespace-nowrap">{Number(sale.amount_paid).toLocaleString()} GNF</p>
+                  <p className="font-black text-slate-900 text-sm whitespace-nowrap">{Number(sale.amount_paid).toLocaleString()} {currency}</p>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{new Date(sale.sold_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                 </div>
               </div>

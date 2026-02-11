@@ -15,6 +15,7 @@ const History: React.FC = () => {
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currency, setCurrency] = useState('GNF');
 
   const notify = useCallback((type: 'success' | 'error', message: string) => { setToast({ type, message }); setTimeout(() => setToast(null), 4000); }, []);
   useEffect(() => { fetchInitialContext(); }, []);
@@ -24,10 +25,14 @@ const History: React.FC = () => {
     try {
       const { data: { user } } = await db.auth.getUser();
       if (!user) return;
-      const { data: userData } = await db.from('users').select('role, tenant_id, tenants(name)').eq('id', user.id).single();
+      const { data: userData } = await db.from('users').select('role, tenant_id, tenants(name, currency)').eq('id', user.id).single();
       const currentRole = userData?.role as UserRole;
       const tenantName = (userData?.tenants as any)?.name;
+      const tenantCurrency = (userData?.tenants as any)?.currency || 'GNF';
+      
       setCurrentUser({ id: user.id, role: currentRole, tenant_id: userData?.tenant_id, tenantName });
+      setCurrency(tenantCurrency);
+      
       if (currentRole === UserRole.ADMIN_GLOBAL) { const { data: tData } = await db.from('tenants').select('id, name').order('name'); setAgencies(tData || []); }
     } catch (err) { console.error(err); }
   };
@@ -51,7 +56,7 @@ const History: React.FC = () => {
   const handlePrint = () => { window.print(); };
   const initiateCancellation = (sale: Sale) => { if (!currentUser) return; const canCancel = currentUser.role === UserRole.ADMIN_GLOBAL || currentUser.role === UserRole.GESTIONNAIRE_WIFI_ZONE || (currentUser.role === UserRole.REVENDEUR && sale.seller_id === currentUser.id); if (!canCancel) { notify('error', "Accès refusé."); return; } setSaleToCancel(sale); };
   const confirmCancellation = async () => { if (!saleToCancel) return; setIsProcessing(true); const targetTicketId = saleToCancel.ticket_id || saleToCancel.tickets?.id; try { const { data: sellerProfile } = await db.from('users').select('role, balance').eq('id', saleToCancel.seller_id).single(); if (sellerProfile?.role === UserRole.REVENDEUR) await db.from('users').update({ balance: Number(sellerProfile.balance || 0) + Number(saleToCancel.amount_paid) }).eq('id', saleToCancel.seller_id); await db.from('tickets').update({ status: 'NEUF', sold_at: null, sold_by: null, assigned_to: null }).eq('id', targetTicketId); await db.from('sales_history').delete().eq('id', saleToCancel.id); notify('success', "Vente annulée."); setSaleToCancel(null); setSelectedSale(null); await fetchHistory(); } catch (err: any) { notify('error', "Échec : " + err.message); } finally { setIsProcessing(false); } };
-  const handleWhatsAppShare = () => { if (!selectedSale) return; window.open(`https://wa.me/?text=${encodeURIComponent(`*TICKET WIFI*\n\n🎟️ CODE : *${selectedSale.tickets?.username}*\n📦 FORFAIT : ${selectedSale.tickets?.ticket_profiles?.name}\n💰 PRIX : ${Number(selectedSale.amount_paid).toLocaleString()} GNF\n\nMerci !`)}`, '_blank'); };
+  const handleWhatsAppShare = () => { if (!selectedSale) return; window.open(`https://wa.me/?text=${encodeURIComponent(`*TICKET WIFI*\n\n🎟️ CODE : *${selectedSale.tickets?.username}*\n📦 FORFAIT : ${selectedSale.tickets?.ticket_profiles?.name}\n💰 PRIX : ${Number(selectedSale.amount_paid).toLocaleString()} ${currency}\n\nMerci !`)}`, '_blank'); };
   const filteredSales = sales.filter(sale => { const s = searchTerm.toLowerCase(); return sale.tickets?.username?.toLowerCase().includes(s) || sale.users?.full_name?.toLowerCase().includes(s); });
 
   return (
@@ -80,7 +85,7 @@ const History: React.FC = () => {
               </div>
               <div className={`p-4 md:p-5 px-6 md:px-8 rounded-[2rem] border flex-1 md:flex-none ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'bg-brand-50 border-brand-100' : 'bg-emerald-50 border-emerald-100'}`}>
                   <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'text-brand-600' : 'text-emerald-600'}`}>RECETTE {currentUser?.role === UserRole.ADMIN_GLOBAL ? 'SAAS GLOBALE' : 'TOTALE'}</p>
-                  <p className={`text-xl md:text-2xl font-black ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'text-brand-700' : 'text-emerald-700'}`}>{stats.totalRevenue.toLocaleString()} <span className="text-[10px] ml-1">GNF</span></p>
+                  <p className={`text-xl md:text-2xl font-black ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'text-brand-700' : 'text-emerald-700'}`}>{stats.totalRevenue.toLocaleString()} <span className="text-[10px] ml-1">{currency}</span></p>
               </div>
           </div>
       </div>
@@ -152,7 +157,7 @@ const History: React.FC = () => {
                                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{sale.tickets?.ticket_profiles?.name}</p>
                                   </td>
                                   <td className="px-6 md:px-10 py-6 md:py-8 text-right">
-                                      <p className="font-black text-slate-900 text-lg">{Number(sale.amount_paid).toLocaleString()} GNF</p>
+                                      <p className="font-black text-slate-900 text-lg">{Number(sale.amount_paid).toLocaleString()} {currency}</p>
                                       <p className="text-[9px] font-bold text-emerald-600 uppercase">Encaissé</p>
                                   </td>
                                   <td className="px-6 md:px-10 py-6 md:py-8 text-right">

@@ -8,6 +8,7 @@
 create table if not exists public.tenants (
   id uuid default gen_random_uuid() primary key,
   name text not null,
+  currency text default 'GNF', -- Ajout de la devise par défaut
   subscription_status text default 'EN_ATTENTE', -- EN_ATTENTE, ACTIF, SUSPENDU
   subscription_end_at timestamptz,
   created_at timestamptz default now()
@@ -201,8 +202,8 @@ begin
   end if;
 
   -- 1. Créer le tenant
-  insert into public.tenants (name, subscription_status, subscription_end_at)
-  values (p_agency_name, sub_status, sub_end_date)
+  insert into public.tenants (name, subscription_status, subscription_end_at, currency)
+  values (p_agency_name, sub_status, sub_end_date, 'GNF')
   returning id into new_tenant_id;
 
   -- 2. Mettre à jour l'utilisateur courant
@@ -275,3 +276,5 @@ begin
   delete from auth.users where id = target_user_id;
 end;
 $$ language plpgsql security definer;
+-- Script de migration manuel si nécessaire:
+-- ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS currency text DEFAULT 'GNF';

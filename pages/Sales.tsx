@@ -15,6 +15,7 @@ const Sales: React.FC = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isProcessingSale, setIsProcessingSale] = useState(false);
   const [lastSoldTicket, setLastSoldTicket] = useState<any>(null);
+  const [currency, setCurrency] = useState('GNF');
 
   useEffect(() => { fetchInitialData(); }, []);
 
@@ -23,8 +24,9 @@ const Sales: React.FC = () => {
       setLoading(true);
       const { data: { user } } = await db.auth.getUser();
       if (!user) return;
-      const { data: profile } = await db.from('users').select('*').eq('id', user.id).single();
+      const { data: profile } = await db.from('users').select('*, tenants(currency)').eq('id', user.id).single();
       setUserProfile(profile);
+      setCurrency((profile.tenants as any)?.currency || 'GNF');
       
       const isReseller = profile.role === UserRole.REVENDEUR;
       
@@ -62,7 +64,7 @@ const Sales: React.FC = () => {
     }
     
     if (!selectedProfile || !userProfile) return;
-    if (userProfile.role === UserRole.REVENDEUR && (userProfile.balance || 0) < selectedProfile.price) { setError(`Solde insuffisant (${userProfile.balance.toLocaleString()} GNF).`); return; }
+    if (userProfile.role === UserRole.REVENDEUR && (userProfile.balance || 0) < selectedProfile.price) { setError(`Solde insuffisant (${userProfile.balance.toLocaleString()} ${currency}).`); return; }
 
     setIsProcessingSale(true); setError(null);
     try {
@@ -89,7 +91,7 @@ const Sales: React.FC = () => {
     } catch (err: any) { setError(err.message); } finally { setIsProcessingSale(false); }
   };
 
-  const handleWhatsAppShare = () => { if (!lastSoldTicket) return; window.open(`https://wa.me/?text=${encodeURIComponent(`*WIFI ZONE*\n🎟️ CODE : *${lastSoldTicket.username}*\n📦 FORFAIT : ${lastSoldTicket.profile_name}\n💰 PRIX : ${Number(lastSoldTicket.price).toLocaleString()} GNF\n\n_Merci pour votre achat !_`)}`, '_blank'); };
+  const handleWhatsAppShare = () => { if (!lastSoldTicket) return; window.open(`https://wa.me/?text=${encodeURIComponent(`*WIFI ZONE*\n🎟️ CODE : *${lastSoldTicket.username}*\n📦 FORFAIT : ${lastSoldTicket.profile_name}\n💰 PRIX : ${Number(lastSoldTicket.price).toLocaleString()} ${currency}\n\n_Merci pour votre achat !_`)}`, '_blank'); };
   const copyCode = () => { if (lastSoldTicket) navigator.clipboard.writeText(lastSoldTicket.username); };
   const filteredProfiles = profiles.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -113,7 +115,7 @@ const Sales: React.FC = () => {
                 </div>
                 <div>
                     <p className="text-[10px] font-black text-brand-400 uppercase tracking-widest leading-none mb-1.5">Mon Solde Actuel</p>
-                    <p className="text-2xl md:text-3xl font-black tracking-tight">{(userProfile.balance || 0).toLocaleString()} <span className="text-[10px] text-brand-400 ml-1">GNF</span></p>
+                    <p className="text-2xl md:text-3xl font-black tracking-tight">{(userProfile.balance || 0).toLocaleString()} <span className="text-[10px] text-brand-400 ml-1">{currency}</span></p>
                 </div>
             </div>
         )}
@@ -143,7 +145,7 @@ const Sales: React.FC = () => {
                          <Tag className="w-7 h-7" />
                      </div>
                      <div className="text-right">
-                         <p className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">{p.price.toLocaleString()} <span className="text-[10px] uppercase font-bold text-slate-400">GNF</span></p>
+                         <p className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">{p.price.toLocaleString()} <span className="text-[10px] uppercase font-bold text-slate-400">{currency}</span></p>
                          <p className="text-[9px] font-black text-brand-500 uppercase tracking-widest mt-1">Prix de vente</p>
                      </div>
                  </div>

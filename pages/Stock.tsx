@@ -18,6 +18,7 @@ const Stock: React.FC = () => {
   const [ticketToUnassign, setTicketToUnassign] = useState<any | null>(null);
   const [isUnassigning, setIsUnassigning] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [currency, setCurrency] = useState('GNF');
 
   useEffect(() => { fetchInitialData(); }, []);
   useEffect(() => { fetchStock(); }, [filter, search, agencyFilter, currentUser]);
@@ -26,9 +27,11 @@ const Stock: React.FC = () => {
     try {
       const { data: { user } } = await db.auth.getUser();
       if (user) {
-        const { data: userData } = await db.from('users').select('role, tenant_id, id').eq('id', user.id).single();
+        const { data: userData } = await db.from('users').select('role, tenant_id, id, tenants(currency)').eq('id', user.id).single();
         if (userData) {
           setCurrentUser(userData);
+          setCurrency((userData.tenants as any)?.currency || 'GNF');
+          
           if (userData.role === UserRole.ADMIN_GLOBAL) {
             const { data: tData } = await db.from('tenants').select('id, name').order('name');
             setAgencies(tData || []);
@@ -178,7 +181,7 @@ const Stock: React.FC = () => {
                                 {!isReseller && <td className="px-6 md:px-8 py-6 font-black text-slate-900 tracking-tight">{item.username}</td>}
                                 {(currentUser?.role === UserRole.ADMIN_GLOBAL || agencyFilter === 'ALL') && (<td className="px-6 md:px-8 py-6"><div className="flex items-center gap-2"><Building2 className="w-3 h-3 text-slate-300" /><span className="text-[10px] font-black text-slate-500 uppercase">{item.tenants?.name}</span></div></td>)}
                                 <td className="px-6 md:px-8 py-6 font-black text-xs text-indigo-500 uppercase">{item.ticket_profiles?.name}</td>
-                                <td className="px-6 md:px-8 py-6 font-black text-slate-900 text-right">{Number(item.ticket_profiles?.price).toLocaleString()} GNF</td>
+                                <td className="px-6 md:px-8 py-6 font-black text-slate-900 text-right">{Number(item.ticket_profiles?.price).toLocaleString()} {currency}</td>
                                 <td className="px-6 md:px-8 py-6 text-center"><span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${statusColor} whitespace-nowrap`}>{statusLabel}</span></td>
                                 {currentUser?.role !== UserRole.REVENDEUR && currentUser?.role !== UserRole.ADMIN_GLOBAL && (
                                     <td className="px-6 md:px-8 py-6 text-right">

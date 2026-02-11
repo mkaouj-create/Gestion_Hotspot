@@ -40,13 +40,16 @@ const Resellers: React.FC = () => {
   // Admin Global States
   const [agencies, setAgencies] = useState<any[]>([]);
   const [agencyFilter, setAgencyFilter] = useState<string>('ALL');
+  const [currency, setCurrency] = useState('GNF');
 
   useEffect(() => {
     const init = async () => {
       const { data: { user } } = await db.auth.getUser();
       if (user) {
-        const { data: profile } = await db.from('users').select('*').eq('id', user.id).single();
+        const { data: profile } = await db.from('users').select('*, tenants(currency)').eq('id', user.id).single();
         setCurrentUser(profile);
+        setCurrency((profile.tenants as any)?.currency || 'GNF');
+
         if (profile.role === UserRole.ADMIN_GLOBAL) {
           const { data: tData } = await db.from('tenants').select('id, name').order('name');
           setAgencies(tData || []);
@@ -263,7 +266,7 @@ const Resellers: React.FC = () => {
       const newBalance = (Number(selectedReseller.balance) || 0) + Number(amount);
       await db.from('users').update({ balance: newBalance }).eq('id', selectedReseller.id);
 
-      setToast({ type: 'success', message: `Compte rechargé de ${Number(amount).toLocaleString()} GNF` }); 
+      setToast({ type: 'success', message: `Compte rechargé de ${Number(amount).toLocaleString()} ${currency}` }); 
       setShowPaymentModal(false); 
       setAmount('');
       setPaymentPhone('');
@@ -362,7 +365,7 @@ const Resellers: React.FC = () => {
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Solde Actuel</p>
                                     <div className={`w-6 h-6 rounded-full flex items-center justify-center ${Number(reseller.balance || 0) < 50000 ? 'bg-red-100 text-red-500' : 'bg-emerald-100 text-emerald-500'}`}>{Number(reseller.balance || 0) < 50000 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}</div>
                                 </div>
-                                <p className={`text-3xl font-black tracking-tight ${Number(reseller.balance || 0) < 0 ? 'text-red-500' : 'text-slate-900'}`}>{Number(reseller.balance || 0).toLocaleString()} <span className="text-[10px] text-slate-400 uppercase align-top mt-1 inline-block">GNF</span></p>
+                                <p className={`text-3xl font-black tracking-tight ${Number(reseller.balance || 0) < 0 ? 'text-red-500' : 'text-slate-900'}`}>{Number(reseller.balance || 0).toLocaleString()} <span className="text-[10px] text-slate-400 uppercase align-top mt-1 inline-block">{currency}</span></p>
                             </div>
                         </div>
                         
@@ -412,12 +415,12 @@ const Resellers: React.FC = () => {
                                     )}
                                     <td className="px-10 py-6 text-right">
                                         <span className={`font-black text-sm px-3 py-1 rounded-lg ${Number(reseller.balance || 0) < 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                            {Number(reseller.balance || 0).toLocaleString()} GNF
+                                            {Number(reseller.balance || 0).toLocaleString()} {currency}
                                         </span>
                                     </td>
                                     <td className="px-10 py-6 text-right">
                                         <div className="flex flex-col items-end">
-                                            <span className="font-black text-slate-900">{Number(reseller.total_revenue || 0).toLocaleString()} GNF</span>
+                                            <span className="font-black text-slate-900">{Number(reseller.total_revenue || 0).toLocaleString()} {currency}</span>
                                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Volume Global</span>
                                         </div>
                                     </td>
@@ -503,7 +506,7 @@ const Resellers: React.FC = () => {
                                   <div className="bg-indigo-50 p-6 rounded-[2.5rem] border border-indigo-100">
                                       <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-2">Volume Total</p>
                                       <p className="text-3xl font-black text-indigo-900">{statsData.totalRevenue30d.toLocaleString()}</p>
-                                      <span className="text-[10px] font-bold text-indigo-500 uppercase">GNF</span>
+                                      <span className="text-[10px] font-bold text-indigo-500 uppercase">{currency}</span>
                                   </div>
                                   <div className="bg-emerald-50 p-6 rounded-[2.5rem] border border-emerald-100">
                                       <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-2">Tickets Vendus</p>
@@ -513,7 +516,7 @@ const Resellers: React.FC = () => {
                                   <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100">
                                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Panier Moyen</p>
                                       <p className="text-3xl font-black text-slate-900">{statsData.averageBasket.toLocaleString()}</p>
-                                      <span className="text-[10px] font-bold text-slate-400 uppercase">GNF / Ticket</span>
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase">{currency} / Ticket</span>
                                   </div>
                               </div>
 
@@ -603,7 +606,7 @@ const Resellers: React.FC = () => {
                                               <CreditCard className="w-5 h-5" />
                                           </div>
                                           <div>
-                                              <p className="font-black text-slate-900 text-lg">{Number(payment.amount).toLocaleString()} GNF</p>
+                                              <p className="font-black text-slate-900 text-lg">{Number(payment.amount).toLocaleString()} {currency}</p>
                                               <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                                   <span className="bg-white px-2 py-0.5 rounded border border-slate-200">{payment.payment_method}</span>
                                                   <span>{new Date(payment.created_at).toLocaleDateString()}</span>
@@ -672,7 +675,7 @@ const Resellers: React.FC = () => {
                                                     <Tag className="w-3 h-3" />
                                                     <span>{ticket.ticket_profiles?.name}</span>
                                                     <span>•</span>
-                                                    <span>{Number(ticket.ticket_profiles?.price).toLocaleString()} GNF</span>
+                                                    <span>{Number(ticket.ticket_profiles?.price).toLocaleString()} {currency}</span>
                                                 </div>
                                             </div>
                                         </div>
