@@ -28,7 +28,8 @@ const Settings: React.FC = () => {
       setLoading(true);
       const { data: { user } } = await db.auth.getUser();
       if (!user) return;
-      const { data: profile } = await db.from('users').select('*, tenants(name, id, currency)').eq('id', user.id).single();
+      // Fetch whatsapp_header and contact_support along with currency
+      const { data: profile } = await db.from('users').select('*, tenants(name, id, currency, whatsapp_header, contact_support)').eq('id', user.id).single();
       if (profile) {
         setUserProfile(profile); setProfileForm(prev => ({ ...prev, fullName: profile.full_name || '' }));
         
@@ -44,9 +45,14 @@ const Settings: React.FC = () => {
           const { count } = await db.from('tickets').select('*', { count: 'exact', head: true }).eq('tenant_id', profile.tenant_id); setStockCount(count || 0);
           const { count: expired } = await db.from('tickets').select('*', { count: 'exact', head: true }).eq('tenant_id', profile.tenant_id).eq('status', 'EXPIRE'); setExpiredCount(expired || 0);
           
-          // Load currency
-          const currentCurrency = (profile.tenants as any)?.currency || 'GNF';
-          setAgencyForm(prev => ({...prev, contactSupport: user.email || '', currency: currentCurrency }));
+          // Load currency and headers with proper snake_case handling
+          const tenant = profile.tenants as any;
+          setAgencyForm(prev => ({
+              ...prev, 
+              contactSupport: tenant?.contact_support || user.email || '', 
+              currency: tenant?.currency || 'GNF',
+              whatsappHeader: tenant?.whatsapp_header || 'Bienvenue sur notre réseau WiFi'
+          }));
         }
       }
     } catch (err) { console.error(err); } finally { setLoading(false); }
@@ -65,7 +71,11 @@ const Settings: React.FC = () => {
       setSaving(true); 
       try {
           if (userProfile?.tenant_id) {
-              const { error } = await db.from('tenants').update({ currency: agencyForm.currency, whatsappHeader: agencyForm.whatsappHeader }).eq('id', userProfile.tenant_id);
+              const { error } = await db.from('tenants').update({ 
+                  currency: agencyForm.currency, 
+                  whatsapp_header: agencyForm.whatsappHeader, // Correction: snake_case pour la DB
+                  contact_support: agencyForm.contactSupport  // Correction: snake_case pour la DB
+              }).eq('id', userProfile.tenant_id);
               if (error) throw error;
               showToast('success', "Configuration et devise sauvegardées !"); 
           }

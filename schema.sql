@@ -8,6 +8,8 @@ create table if not exists public.tenants (
   id uuid default gen_random_uuid() primary key,
   name text not null,
   currency text default 'GNF', -- Ajout de la devise par défaut
+  whatsapp_header text default 'Bienvenue sur notre réseau WiFi', -- En-tête reçu
+  contact_support text, -- Contact support affiché
   subscription_status text default 'EN_ATTENTE', -- EN_ATTENTE, ACTIF, SUSPENDU
   subscription_end_at timestamptz,
   created_at timestamptz default now()
@@ -201,8 +203,8 @@ begin
   end if;
 
   -- 1. Créer le tenant (Currency par défaut GNF)
-  insert into public.tenants (name, subscription_status, subscription_end_at, currency)
-  values (p_agency_name, sub_status, sub_end_date, 'GNF')
+  insert into public.tenants (name, subscription_status, subscription_end_at, currency, whatsapp_header)
+  values (p_agency_name, sub_status, sub_end_date, 'GNF', 'Bienvenue sur notre réseau WiFi')
   returning id into new_tenant_id;
 
   -- 2. Mettre à jour l'utilisateur courant
@@ -278,3 +280,5 @@ $$ language plpgsql security definer;
 
 -- MISE A JOUR MANUELLE: Ajoutez cette ligne si la colonne n'existe pas
 -- ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS currency text DEFAULT 'GNF';
+-- ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS whatsapp_header text DEFAULT 'Bienvenue sur notre réseau WiFi';
+-- ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS contact_support text;
