@@ -276,5 +276,11 @@ begin
   delete from auth.users where id = target_user_id;
 end;
 $$ language plpgsql security definer;
--- Script de migration manuel si nécessaire:
--- ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS currency text DEFAULT 'GNF';
+
+-- Script de migration manuel pour mettre à jour les tables existantes sans perdre de données
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'tenants' AND column_name = 'currency') THEN
+        ALTER TABLE public.tenants ADD COLUMN currency text DEFAULT 'GNF';
+    END IF;
+END $$;
