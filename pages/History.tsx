@@ -75,11 +75,13 @@ const History: React.FC = () => {
               else targetTenantId = undefined; // Pas de filtre spécifique
           }
 
-          // 1. Récupérer les vendeurs
-          let userQuery = db.from('users').select('id, full_name').neq('role', 'CLIENT');
-          if (targetTenantId) userQuery = userQuery.eq('tenant_id', targetTenantId);
-          const { data: usersData } = await userQuery.order('full_name');
-          setSellersList(usersData || []);
+          // 1. Récupérer les vendeurs (Uniquement si pas revendeur)
+          if (currentUser.role !== UserRole.REVENDEUR) {
+              let userQuery = db.from('users').select('id, full_name').neq('role', 'CLIENT');
+              if (targetTenantId) userQuery = userQuery.eq('tenant_id', targetTenantId);
+              const { data: usersData } = await userQuery.order('full_name');
+              setSellersList(usersData || []);
+          }
 
           // 2. Récupérer les profils
           let profileQuery = db.from('ticket_profiles').select('id, name');
@@ -96,7 +98,6 @@ const History: React.FC = () => {
       setLoading(true);
       
       // Construction de la requête principale
-      // Note: tickets!inner est nécessaire pour filtrer sur les propriétés du ticket (comme profile_id)
       let query = db.from('sales_history')
         .select(`
             id, amount_paid, sold_at, metadata, ticket_id, tenant_id, seller_id, 
@@ -171,7 +172,7 @@ const History: React.FC = () => {
               <div>
                   <div className="flex items-center gap-2 mb-1">
                       <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded-md ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'bg-brand-50 text-brand-600' : 'bg-slate-50 text-slate-400'}`}>
-                          {currentUser?.role === UserRole.ADMIN_GLOBAL ? 'Vue Master Supervision SaaS' : 'Journal des Ventes'}
+                          {currentUser?.role === UserRole.ADMIN_GLOBAL ? 'Vue Master Supervision SaaS' : (currentUser?.role === UserRole.REVENDEUR ? 'Mes Ventes' : 'Journal des Ventes')}
                       </span>
                   </div>
                   <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight leading-none">Flux Transactions</h1>
@@ -183,7 +184,7 @@ const History: React.FC = () => {
                   <p className="text-xl md:text-2xl font-black text-slate-900">{stats.totalCount}</p>
               </div>
               <div className={`p-4 md:p-5 px-6 md:px-8 rounded-[2rem] border flex-1 md:flex-none ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'bg-brand-50 border-brand-100' : 'bg-emerald-50 border-emerald-100'}`}>
-                  <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'text-brand-600' : 'text-emerald-600'}`}>RECETTE FILTRÉE</p>
+                  <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'text-brand-600' : 'text-emerald-600'}`}>{currentUser?.role === UserRole.REVENDEUR ? 'TOTAL VENDU' : 'RECETTE FILTRÉE'}</p>
                   <p className={`text-xl md:text-2xl font-black ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'text-brand-700' : 'text-emerald-700'}`}>{stats.totalRevenue.toLocaleString()} <span className="text-[10px] ml-1">{currency}</span></p>
               </div>
           </div>
@@ -229,13 +230,15 @@ const History: React.FC = () => {
                       <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-2xl bg-slate-50 text-slate-600 font-bold text-xs uppercase outline-none focus:ring-2 focus:ring-brand-100 transition-all cursor-pointer" />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-300">FIN</span>
                   </div>
-                  <div className="relative">
-                      <User className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                      <select value={sellerFilter} onChange={(e) => setSellerFilter(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-2xl bg-slate-50 text-slate-600 font-bold text-xs uppercase appearance-none outline-none focus:ring-2 focus:ring-brand-100 transition-all cursor-pointer">
-                          <option value="ALL">Tous les vendeurs</option>
-                          {sellersList.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
-                      </select>
-                  </div>
+                  {currentUser?.role !== UserRole.REVENDEUR && (
+                      <div className="relative">
+                          <User className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                          <select value={sellerFilter} onChange={(e) => setSellerFilter(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-2xl bg-slate-50 text-slate-600 font-bold text-xs uppercase appearance-none outline-none focus:ring-2 focus:ring-brand-100 transition-all cursor-pointer">
+                              <option value="ALL">Tous les vendeurs</option>
+                              {sellersList.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+                          </select>
+                      </div>
+                  )}
                   <div className="relative">
                       <Tag className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                       <select value={profileFilter} onChange={(e) => setProfileFilter(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-2xl bg-slate-50 text-slate-600 font-bold text-xs uppercase appearance-none outline-none focus:ring-2 focus:ring-brand-100 transition-all cursor-pointer">
@@ -266,7 +269,7 @@ const History: React.FC = () => {
                           <tr className="border-b border-slate-50 bg-slate-50/30 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                               <th className="px-6 md:px-10 py-6">CHRONO</th>
                               {(currentUser?.role === UserRole.ADMIN_GLOBAL || agencyFilter === 'ALL') && <th className="px-6 md:px-10 py-6">AGENCE</th>}
-                              <th className="px-6 md:px-10 py-6">OPÉRATEUR</th>
+                              <th className="px-6 md:px-10 py-6">{currentUser?.role === UserRole.REVENDEUR ? 'CLIENT' : 'OPÉRATEUR'}</th>
                               <th className="px-6 md:px-10 py-6">CODE TICKET</th>
                               <th className="px-6 md:px-10 py-6 text-right">MONTANT</th>
                               <th className="px-6 md:px-10 py-6"></th>
@@ -290,8 +293,17 @@ const History: React.FC = () => {
                                       </td>
                                   )}
                                   <td className="px-6 md:px-10 py-6 md:py-8">
-                                      <p className="text-xs font-black text-slate-800">{sale.users?.full_name || 'Inconnu'}</p>
-                                      <p className="text-[9px] font-bold text-slate-400 uppercase">Vendeur</p>
+                                      {currentUser?.role === UserRole.REVENDEUR ? (
+                                          <>
+                                              <p className="text-xs font-black text-slate-800">{sale.metadata?.customer_phone || 'Anonyme'}</p>
+                                              <p className="text-[9px] font-bold text-slate-400 uppercase">Info Client</p>
+                                          </>
+                                      ) : (
+                                          <>
+                                              <p className="text-xs font-black text-slate-800">{sale.users?.full_name || 'Inconnu'}</p>
+                                              <p className="text-[9px] font-bold text-slate-400 uppercase">Vendeur</p>
+                                          </>
+                                      )}
                                   </td>
                                   <td className="px-6 md:px-10 py-6 md:py-8">
                                       <p className="font-black text-slate-900 text-lg tracking-tighter leading-none mb-1 group-hover:text-brand-600 transition-colors">{sale.tickets?.username}</p>
