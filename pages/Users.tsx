@@ -85,14 +85,24 @@ const Users: React.FC = () => {
         const { error } = await db.from('users').update({ full_name: formData.fullName.trim(), role: formData.role }).eq('id', editingUser.id);
         if (error) throw error; notify('success', `Profil mis à jour.`);
       } else {
-        const tempClient = createClient(supabaseUrl, supabaseKey);
+        // CORRECTION MAJEURE: Utilisation d'un client temporaire sans persistance de session
+        // Cela empêche l'admin d'être déconnecté lors de la création d'un autre utilisateur
+        const tempClient = createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                persistSession: false,
+                autoRefreshToken: false,
+                detectSessionInUrl: false
+            }
+        }) as any;
+        
         const { error: authError } = await tempClient.auth.signUp({ 
             email: formData.email.trim().toLowerCase(), 
             password: formData.password, 
             options: { data: { full_name: formData.fullName.trim(), tenant_id: currentUserProfile.tenant_id, role: formData.role } } 
         });
+        
         if (authError) throw authError; 
-        notify('success', "Nouveau membre ajouté.");
+        notify('success', "Nouveau membre ajouté. (Vérifiez les emails si activé)");
       }
       await fetchData(); setShowModal(false); setFormData({ fullName: '', email: '', password: '', role: UserRole.REVENDEUR }); setEditingUser(null);
     } catch (err: any) { notify('error', err.message); } finally { setIsSubmitting(false); }

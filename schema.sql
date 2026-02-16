@@ -79,6 +79,7 @@ create table if not exists public.payments (
   amount numeric not null,
   payment_method text, -- CASH, MOMO, OM
   phone_number text,
+  status text default 'APPROVED', -- APPROVED, PENDING, REJECTED (Ajouté pour le flux de demande)
   created_by uuid references public.users(id),
   created_at timestamptz default now()
 );
@@ -279,6 +280,7 @@ end;
 $$ language plpgsql security definer;
 
 -- MISE A JOUR MANUELLE: Ajoutez cette ligne si la colonne n'existe pas
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS status text DEFAULT 'APPROVED';
 -- ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS currency text DEFAULT 'GNF';
 -- ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS whatsapp_header text DEFAULT 'Bienvenue sur notre réseau WiFi';
 -- ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS contact_support text;

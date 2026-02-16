@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { Users, Wallet, Plus, Search, Loader2, TrendingUp, TrendingDown, ArrowRight, History, Ticket, DollarSign, X, Building2, CheckCircle2, AlertCircle, Smartphone, Filter, LayoutGrid, List, Calendar, CreditCard, UserCircle, ClipboardList, Tag, BarChart3, PieChart } from 'lucide-react';
+import { Users, Wallet, Plus, Search, Loader2, TrendingUp, TrendingDown, ArrowRight, History, Ticket, DollarSign, X, Building2, CheckCircle2, AlertCircle, Smartphone, Filter, LayoutGrid, List, Calendar, CreditCard, UserCircle, ClipboardList, Tag, BarChart3, PieChart, Check, Ban, Bell } from 'lucide-react';
 import { db } from '../services/db';
 import { UserRole, User, TicketStatus } from '../types';
 
@@ -15,7 +16,7 @@ const Resellers: React.FC = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showStockHistoryModal, setShowStockHistoryModal] = useState(false);
-  const [showStatsModal, setShowStatsModal] = useState(false); // New Stats Modal
+  const [showStatsModal, setShowStatsModal] = useState(false); 
   
   const [selectedReseller, setSelectedReseller] = useState<User | null>(null);
   
@@ -33,7 +34,7 @@ const Resellers: React.FC = () => {
   const [processing, setProcessing] = useState(false);
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
   const [stockHistory, setStockHistory] = useState<any[]>([]);
-  const [statsData, setStatsData] = useState<any>(null); // New Stats Data
+  const [statsData, setStatsData] = useState<any>(null); 
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [toast, setToast] = useState<any>(null);
 
@@ -41,6 +42,9 @@ const Resellers: React.FC = () => {
   const [agencies, setAgencies] = useState<any[]>([]);
   const [agencyFilter, setAgencyFilter] = useState<string>('ALL');
   const [currency, setCurrency] = useState('GNF');
+
+  // Pending Requests State
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
 
   useEffect(() => {
     const init = async () => {
@@ -60,8 +64,68 @@ const Resellers: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (currentUser) fetchResellers();
+    if (currentUser) {
+        fetchResellers();
+        if (currentUser.role !== UserRole.REVENDEUR) {
+            fetchPendingRequests();
+        }
+    }
   }, [currentUser, agencyFilter]);
+
+  const fetchPendingRequests = async () => {
+      try {
+          let query = db.from('payments')
+            .select('*, users!payments_reseller_id_fkey(full_name)')
+            .eq('status', 'PENDING')
+            .order('created_at', { ascending: false });
+
+          if (currentUser.role === UserRole.ADMIN_GLOBAL) {
+              if (agencyFilter !== 'ALL') query = query.eq('tenant_id', agencyFilter);
+          } else {
+              query = query.eq('tenant_id', currentUser.tenant_id);
+          }
+
+          const { data } = await query;
+          setPendingRequests(data || []);
+      } catch (err) { console.error("Erreur chargement demandes", err); }
+  };
+
+  const handleApproveRequest = async (request: any) => {
+      if(processing) return;
+      setProcessing(true);
+      try {
+          // 1. Update status
+          const { error: updateError } = await db.from('payments').update({ status: 'APPROVED' }).eq('id', request.id);
+          if (updateError) throw updateError;
+
+          // 2. Update balance
+          const { data: user } = await db.from('users').select('balance').eq('id', request.reseller_id).single();
+          const currentBalance = Number(user?.balance) || 0;
+          await db.from('users').update({ balance: currentBalance + Number(request.amount) }).eq('id', request.reseller_id);
+
+          setToast({ type: 'success', message: "Rechargement validé." });
+          fetchPendingRequests();
+          fetchResellers(); // Update list to show new balance
+      } catch(err: any) {
+          setToast({ type: 'error', message: err.message });
+      } finally {
+          setProcessing(false);
+      }
+  };
+
+  const handleRejectRequest = async (request: any) => {
+      if(!confirm("Rejeter cette demande ?") || processing) return;
+      setProcessing(true);
+      try {
+          await db.from('payments').update({ status: 'REJECTED' }).eq('id', request.id);
+          setToast({ type: 'success', message: "Demande rejetée." });
+          fetchPendingRequests();
+      } catch(err: any) {
+          setToast({ type: 'error', message: err.message });
+      } finally {
+          setProcessing(false);
+      }
+  };
 
   const fetchResellers = async () => {
     try {
@@ -258,7 +322,8 @@ const Resellers: React.FC = () => {
           amount: Number(amount), 
           payment_method: method, 
           phone_number: rawDigits,
-          created_by: currentUser.id 
+          created_by: currentUser.id,
+          status: 'APPROVED' // Admin manual payment is auto-approved
       });
       
       if (error) throw error;
@@ -333,6 +398,39 @@ const Resellers: React.FC = () => {
              </div>
         </div>
       </header>
+
+      {/* PENDING APPROVALS SECTION */}
+      {pendingRequests.length > 0 && (
+          <div className="bg-orange-50 border border-orange-100 rounded-[2.5rem] p-8 animate-in slide-in-from-top-4">
+              <div className="flex items-center gap-3 mb-6">
+                  <div className="bg-white p-2 rounded-xl text-orange-500 shadow-sm"><Bell className="w-5 h-5" /></div>
+                  <h3 className="font-black text-slate-900 text-lg">Demandes de rechargement ({pendingRequests.length})</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {pendingRequests.map(request => (
+                      <div key={request.id} className="bg-white p-5 rounded-[2rem] shadow-sm border border-orange-100 flex flex-col gap-4">
+                          <div className="flex justify-between items-start">
+                              <div>
+                                  <p className="font-black text-slate-900">{request.users?.full_name}</p>
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{request.payment_method}</p>
+                              </div>
+                              <span className="text-lg font-black text-emerald-600">{Number(request.amount).toLocaleString()}</span>
+                          </div>
+                          <div className="bg-slate-50 p-3 rounded-xl">
+                              <p className="text-[9px] text-slate-400 uppercase font-bold mb-1">Preuve / Référence</p>
+                              <p className="text-xs font-bold text-slate-700 break-all">{request.phone_number || 'Aucune référence'}</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 mt-auto">
+                              <button onClick={() => handleRejectRequest(request)} className="py-2.5 rounded-xl border border-red-100 text-red-500 hover:bg-red-50 font-black text-[10px] uppercase tracking-widest transition-all">Rejeter</button>
+                              <button onClick={() => handleApproveRequest(request)} className="py-2.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2">
+                                  {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Check className="w-3 h-3" /> Valider</>}
+                              </button>
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      )}
       
       {loading ? (
          <div className="py-40 flex flex-col items-center justify-center gap-4"><Loader2 className="w-12 h-12 animate-spin text-slate-200" /><p className="text-xs font-black uppercase tracking-widest text-slate-300">Chargement des comptes...</p></div>
@@ -477,7 +575,7 @@ const Resellers: React.FC = () => {
         </div>
       )}
 
-      {/* --- STATS DETAILED MODAL (NEW) --- */}
+      {/* --- STATS DETAILED MODAL --- */}
       {showStatsModal && selectedReseller && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 animate-in fade-in">
               <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowStatsModal(false)} />
@@ -610,6 +708,8 @@ const Resellers: React.FC = () => {
                                               <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                                   <span className="bg-white px-2 py-0.5 rounded border border-slate-200">{payment.payment_method}</span>
                                                   <span>{new Date(payment.created_at).toLocaleDateString()}</span>
+                                                  {payment.status === 'PENDING' && <span className="text-orange-500">EN ATTENTE</span>}
+                                                  {payment.status === 'REJECTED' && <span className="text-red-500">REJETÉ</span>}
                                               </div>
                                           </div>
                                       </div>

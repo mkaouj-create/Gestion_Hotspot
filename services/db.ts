@@ -64,6 +64,6 @@ export const db = createClient(supabaseUrl, supabaseKey, {
     autoRefreshToken: true,
     detectSessionInUrl: true
   }
-});
+}) as any;
 
 export { supabaseUrl, supabaseKey };
