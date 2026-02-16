@@ -1,14 +1,29 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/db';
-import { History as HistoryIcon, Search, Loader2, Info, X, QrCode, Share2, RefreshCcw, RotateCcw, AlertTriangle, CheckCircle2, Building2, Calendar, AlertCircle, Printer, Filter } from 'lucide-react';
+import { History as HistoryIcon, Search, Loader2, Info, X, QrCode, Share2, RefreshCcw, RotateCcw, AlertTriangle, CheckCircle2, Building2, Calendar, AlertCircle, Printer, Filter, User, Tag, CalendarRange } from 'lucide-react';
 import { UserRole, Sale } from '../types';
 
 const History: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Filtres de base
   const [searchTerm, setSearchTerm] = useState('');
   const [agencyFilter, setAgencyFilter] = useState<string>('ALL');
+  
+  // Filtres Avancés
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
+  const [sellerFilter, setSellerFilter] = useState('ALL');
+  const [profileFilter, setProfileFilter] = useState('ALL');
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Listes pour les dropdowns
   const [agencies, setAgencies] = useState<any[]>([]);
+  const [sellersList, setSellersList] = useState<any[]>([]);
+  const [profilesList, setProfilesList] = useState<any[]>([]);
+
   const [stats, setStats] = useState({ totalCount: 0, totalRevenue: 0 });
   const [toast, setToast] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [currentUser, setCurrentUser] = useState<{ id: string, role: UserRole, tenant_id?: string, tenantName?: string } | null>(null);
@@ -18,8 +33,18 @@ const History: React.FC = () => {
   const [currency, setCurrency] = useState('GNF');
 
   const notify = useCallback((type: 'success' | 'error', message: string) => { setToast({ type, message }); setTimeout(() => setToast(null), 4000); }, []);
+  
   useEffect(() => { fetchInitialContext(); }, []);
-  useEffect(() => { fetchHistory(); }, [agencyFilter, searchTerm, currentUser]);
+  
+  // Rechargement des données quand un filtre change
+  useEffect(() => { 
+      if (currentUser) fetchHistory(); 
+  }, [agencyFilter, searchTerm, currentUser, dateStart, dateEnd, sellerFilter, profileFilter]);
+
+  // Rechargement des listes déroulantes (Vendeurs/Forfaits) quand l'agence change (pour Global Admin)
+  useEffect(() => {
+      if (currentUser) fetchFilterOptions();
+  }, [currentUser, agencyFilter]);
 
   const fetchInitialContext = async () => {
     try {
@@ -33,36 +58,110 @@ const History: React.FC = () => {
       setCurrentUser({ id: user.id, role: currentRole, tenant_id: userData?.tenant_id, tenantName });
       setCurrency(tenantCurrency);
       
-      if (currentRole === UserRole.ADMIN_GLOBAL) { const { data: tData } = await db.from('tenants').select('id, name').order('name'); setAgencies(tData || []); }
+      if (currentRole === UserRole.ADMIN_GLOBAL) { 
+          const { data: tData } = await db.from('tenants').select('id, name').order('name'); 
+          setAgencies(tData || []); 
+      }
     } catch (err) { console.error(err); }
+  };
+
+  const fetchFilterOptions = async () => {
+      if (!currentUser) return;
+      try {
+          // Déterminer le scope (Tenant ID)
+          let targetTenantId = currentUser.tenant_id;
+          if (currentUser.role === UserRole.ADMIN_GLOBAL) {
+              if (agencyFilter !== 'ALL') targetTenantId = agencyFilter;
+              else targetTenantId = undefined; // Pas de filtre spécifique
+          }
+
+          // 1. Récupérer les vendeurs
+          let userQuery = db.from('users').select('id, full_name').neq('role', 'CLIENT');
+          if (targetTenantId) userQuery = userQuery.eq('tenant_id', targetTenantId);
+          const { data: usersData } = await userQuery.order('full_name');
+          setSellersList(usersData || []);
+
+          // 2. Récupérer les profils
+          let profileQuery = db.from('ticket_profiles').select('id, name');
+          if (targetTenantId) profileQuery = profileQuery.eq('tenant_id', targetTenantId);
+          const { data: profilesData } = await profileQuery.order('name');
+          setProfilesList(profilesData || []);
+
+      } catch (err) { console.error("Erreur chargement filtres", err); }
   };
 
   const fetchHistory = async () => {
     if (!currentUser) return;
     try {
       setLoading(true);
-      let query = db.from('sales_history').select(`id, amount_paid, sold_at, metadata, ticket_id, tenant_id, seller_id, tenants(name), tickets(id, username, password, status, ticket_profiles(name)), users(full_name)`);
-      if (currentUser.role === UserRole.REVENDEUR) query = query.eq('seller_id', currentUser.id);
-      else if (currentUser.role === UserRole.ADMIN_GLOBAL) { if (agencyFilter !== 'ALL') query = query.eq('tenant_id', agencyFilter); } else query = query.eq('tenant_id', currentUser.tenant_id);
+      
+      // Construction de la requête principale
+      // Note: tickets!inner est nécessaire pour filtrer sur les propriétés du ticket (comme profile_id)
+      let query = db.from('sales_history')
+        .select(`
+            id, amount_paid, sold_at, metadata, ticket_id, tenant_id, seller_id, 
+            tenants(name), 
+            tickets!inner(id, username, password, status, profile_id, ticket_profiles(name)), 
+            users(full_name)
+        `);
+
+      // Filtre Rôle
+      if (currentUser.role === UserRole.REVENDEUR) {
+          query = query.eq('seller_id', currentUser.id);
+      } else if (currentUser.role === UserRole.ADMIN_GLOBAL) { 
+          if (agencyFilter !== 'ALL') query = query.eq('tenant_id', agencyFilter); 
+      } else { 
+          query = query.eq('tenant_id', currentUser.tenant_id); 
+      }
+
+      // Filtre Recherche Texte
       if (searchTerm) query = query.ilike('tickets.username', `%${searchTerm}%`);
+
+      // Filtres Avancés
+      if (dateStart) query = query.gte('sold_at', `${dateStart}T00:00:00`);
+      if (dateEnd) query = query.lte('sold_at', `${dateEnd}T23:59:59`);
+      if (sellerFilter !== 'ALL') query = query.eq('seller_id', sellerFilter);
+      if (profileFilter !== 'ALL') query = query.eq('tickets.profile_id', profileFilter);
+
       const { data, error } = await query.order('sold_at', { ascending: false }).limit(500);
+      
       if (error) throw error;
       const results = (data as unknown as Sale[]) || [];
       setSales(results);
-      setStats({ totalCount: results.length, totalRevenue: results.reduce((acc, curr) => acc + Number(curr.amount_paid), 0) });
-    } catch (err: any) { console.error("History fetch error:", err); } finally { setLoading(false); }
+      
+      // Calcul des totaux basés sur le résultat filtré
+      setStats({ 
+          totalCount: results.length, 
+          totalRevenue: results.reduce((acc, curr) => acc + Number(curr.amount_paid), 0) 
+      });
+
+    } catch (err: any) { 
+        console.error("History fetch error:", err); 
+        notify('error', "Erreur chargement historique");
+    } finally { 
+        setLoading(false); 
+    }
+  };
+
+  const resetFilters = () => {
+      setSearchTerm('');
+      setDateStart('');
+      setDateEnd('');
+      setSellerFilter('ALL');
+      setProfileFilter('ALL');
+      if (currentUser?.role === UserRole.ADMIN_GLOBAL) setAgencyFilter('ALL');
   };
 
   const handlePrint = () => { window.print(); };
   const initiateCancellation = (sale: Sale) => { if (!currentUser) return; const canCancel = currentUser.role === UserRole.ADMIN_GLOBAL || currentUser.role === UserRole.GESTIONNAIRE_WIFI_ZONE || (currentUser.role === UserRole.REVENDEUR && sale.seller_id === currentUser.id); if (!canCancel) { notify('error', "Accès refusé."); return; } setSaleToCancel(sale); };
   const confirmCancellation = async () => { if (!saleToCancel) return; setIsProcessing(true); const targetTicketId = saleToCancel.ticket_id || saleToCancel.tickets?.id; try { const { data: sellerProfile } = await db.from('users').select('role, balance').eq('id', saleToCancel.seller_id).single(); if (sellerProfile?.role === UserRole.REVENDEUR) await db.from('users').update({ balance: Number(sellerProfile.balance || 0) + Number(saleToCancel.amount_paid) }).eq('id', saleToCancel.seller_id); await db.from('tickets').update({ status: 'NEUF', sold_at: null, sold_by: null, assigned_to: null }).eq('id', targetTicketId); await db.from('sales_history').delete().eq('id', saleToCancel.id); notify('success', "Vente annulée."); setSaleToCancel(null); setSelectedSale(null); await fetchHistory(); } catch (err: any) { notify('error', "Échec : " + err.message); } finally { setIsProcessing(false); } };
   const handleWhatsAppShare = () => { if (!selectedSale) return; window.open(`https://wa.me/?text=${encodeURIComponent(`*TICKET WIFI*\n\n🎟️ CODE : *${selectedSale.tickets?.username}*\n📦 FORFAIT : ${selectedSale.tickets?.ticket_profiles?.name}\n💰 PRIX : ${Number(selectedSale.amount_paid).toLocaleString()} ${currency}\n\nMerci !`)}`, '_blank'); };
-  const filteredSales = sales.filter(sale => { const s = searchTerm.toLowerCase(); return sale.tickets?.username?.toLowerCase().includes(s) || sale.users?.full_name?.toLowerCase().includes(s); });
 
   return (
     <div className="space-y-6 font-sans pb-24 animate-in fade-in duration-500 relative">
       {toast && (<div className={`fixed top-6 right-6 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right border ${toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-red-600 text-white border-red-500'}`}>{toast.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}<p className="font-bold text-sm tracking-tight">{toast.message}</p></div>)}
       
+      {/* HEADER & STATS */}
       <div className="bg-white p-6 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-slate-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-8 relative overflow-hidden">
           {currentUser?.role === UserRole.ADMIN_GLOBAL && (<div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 rounded-full blur-[80px] -mr-20 -mt-20"></div>)}
           <div className="flex items-center gap-5 relative z-10">
@@ -84,39 +183,81 @@ const History: React.FC = () => {
                   <p className="text-xl md:text-2xl font-black text-slate-900">{stats.totalCount}</p>
               </div>
               <div className={`p-4 md:p-5 px-6 md:px-8 rounded-[2rem] border flex-1 md:flex-none ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'bg-brand-50 border-brand-100' : 'bg-emerald-50 border-emerald-100'}`}>
-                  <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'text-brand-600' : 'text-emerald-600'}`}>RECETTE {currentUser?.role === UserRole.ADMIN_GLOBAL ? 'SAAS GLOBALE' : 'TOTALE'}</p>
+                  <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'text-brand-600' : 'text-emerald-600'}`}>RECETTE FILTRÉE</p>
                   <p className={`text-xl md:text-2xl font-black ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'text-brand-700' : 'text-emerald-700'}`}>{stats.totalRevenue.toLocaleString()} <span className="text-[10px] ml-1">{currency}</span></p>
               </div>
           </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-center max-w-7xl mx-auto">
-          <div className="relative group flex-1 w-full">
-              <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 md:w-6 md:h-6 text-slate-300 group-focus-within:text-brand-600 transition-colors" />
-              <input type="text" placeholder="Rechercher par code ticket ou agent..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-14 md:pl-16 pr-8 py-4 md:py-5 rounded-[2rem] border border-slate-100 bg-white shadow-sm focus:ring-8 focus:ring-brand-50 outline-none font-bold text-slate-600 transition-all text-sm md:text-base" />
+      {/* FILTER BAR */}
+      <div className="bg-white p-2 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col gap-2">
+          {/* Top Row: Search & Toggle */}
+          <div className="flex flex-col md:flex-row gap-2">
+              <div className="relative group flex-1">
+                  <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-brand-600 transition-colors" />
+                  <input type="text" placeholder="Rechercher code ticket..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-14 pr-6 py-4 rounded-[2rem] bg-white hover:bg-slate-50 focus:bg-white outline-none font-bold text-slate-600 transition-all text-sm" />
+              </div>
+              
+              {currentUser?.role === UserRole.ADMIN_GLOBAL && (
+                  <div className="relative md:w-64">
+                      <Building2 className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                      <select value={agencyFilter} onChange={(e) => setAgencyFilter(e.target.value)} className="w-full pl-12 pr-10 py-4 rounded-[2rem] bg-slate-50 border-none font-bold text-slate-600 appearance-none outline-none focus:ring-2 focus:ring-brand-100 transition-all cursor-pointer text-sm"><option value="ALL">Toutes les Agences</option>{agencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
+                  </div>
+              )}
+
+              <button onClick={() => setShowFilters(!showFilters)} className={`p-4 rounded-[2rem] border transition-all flex items-center gap-2 font-bold text-xs uppercase tracking-wider ${showFilters ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-100 text-slate-500 hover:border-slate-300'}`}>
+                  <Filter className="w-4 h-4" /> <span className="hidden md:inline">Filtres</span>
+              </button>
+              
+              {(dateStart || dateEnd || sellerFilter !== 'ALL' || profileFilter !== 'ALL' || searchTerm) && (
+                  <button onClick={resetFilters} className="p-4 rounded-[2rem] bg-red-50 text-red-500 hover:bg-red-100 transition-all" title="Réinitialiser">
+                      <X className="w-4 h-4" />
+                  </button>
+              )}
           </div>
-          {currentUser?.role === UserRole.ADMIN_GLOBAL && (
-              <div className="relative w-full md:w-72">
-                  <Building2 className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                  <select value={agencyFilter} onChange={(e) => setAgencyFilter(e.target.value)} className="w-full pl-12 pr-10 py-4 md:py-5 rounded-[2rem] border border-slate-100 bg-white font-bold text-slate-600 appearance-none outline-none focus:ring-8 focus:ring-brand-50 transition-all shadow-sm cursor-pointer text-sm md:text-base"><option value="ALL">Toutes les Agences (SaaS)</option>{agencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
-                  <Filter className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
+
+          {/* Collapsible Advanced Filters */}
+          {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-2 p-2 animate-in slide-in-from-top-2 fade-in">
+                  <div className="relative">
+                      <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-2xl bg-slate-50 text-slate-600 font-bold text-xs uppercase outline-none focus:ring-2 focus:ring-brand-100 transition-all cursor-pointer" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-300">DEBUT</span>
+                  </div>
+                  <div className="relative">
+                      <CalendarRange className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-2xl bg-slate-50 text-slate-600 font-bold text-xs uppercase outline-none focus:ring-2 focus:ring-brand-100 transition-all cursor-pointer" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-300">FIN</span>
+                  </div>
+                  <div className="relative">
+                      <User className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <select value={sellerFilter} onChange={(e) => setSellerFilter(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-2xl bg-slate-50 text-slate-600 font-bold text-xs uppercase appearance-none outline-none focus:ring-2 focus:ring-brand-100 transition-all cursor-pointer">
+                          <option value="ALL">Tous les vendeurs</option>
+                          {sellersList.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+                      </select>
+                  </div>
+                  <div className="relative">
+                      <Tag className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <select value={profileFilter} onChange={(e) => setProfileFilter(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-2xl bg-slate-50 text-slate-600 font-bold text-xs uppercase appearance-none outline-none focus:ring-2 focus:ring-brand-100 transition-all cursor-pointer">
+                          <option value="ALL">Tous les forfaits</option>
+                          {profilesList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                  </div>
               </div>
           )}
-          <button onClick={fetchHistory} className="p-4 md:p-5 bg-white border border-slate-100 rounded-full text-slate-400 hover:text-brand-600 shadow-sm transition-all hover:bg-slate-50 active:scale-90 hidden md:block">
-              <RefreshCcw className={`w-6 h-6 ${loading ? 'animate-spin' : ''}`} />
-          </button>
       </div>
 
       <div className="bg-white rounded-[2rem] md:rounded-[3.5rem] border border-slate-100 shadow-sm overflow-hidden min-h-[500px]">
-          {loading && sales.length === 0 ? (
+          {loading ? (
               <div className="flex flex-col items-center justify-center h-[500px] gap-4">
                   <Loader2 className="w-12 h-12 text-brand-600 animate-spin opacity-40" />
-                  <p className="text-xs font-black text-slate-300 uppercase tracking-widest">Chargement du flux SaaS...</p>
+                  <p className="text-xs font-black text-slate-300 uppercase tracking-widest">Recherche en cours...</p>
               </div>
-          ) : filteredSales.length === 0 ? (
+          ) : sales.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-[500px] text-slate-300 gap-4">
                   <HistoryIcon className="w-16 h-16 opacity-10" />
-                  <p className="font-bold uppercase text-[10px] tracking-[0.2em]">Aucun mouvement enregistré</p>
+                  <p className="font-bold uppercase text-[10px] tracking-[0.2em]">Aucun résultat pour ces critères</p>
+                  <button onClick={resetFilters} className="text-xs text-brand-600 hover:underline">Réinitialiser les filtres</button>
               </div>
           ) : (
               <div className="overflow-x-auto">
@@ -132,7 +273,7 @@ const History: React.FC = () => {
                           </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
-                          {filteredSales.map((sale) => (
+                          {sales.map((sale) => (
                               <tr key={sale.id} onClick={() => setSelectedSale(sale)} className="hover:bg-brand-50/30 transition-all group cursor-pointer">
                                   <td className="px-6 md:px-10 py-6 md:py-8">
                                       <div className="flex items-center gap-3">
@@ -149,8 +290,8 @@ const History: React.FC = () => {
                                       </td>
                                   )}
                                   <td className="px-6 md:px-10 py-6 md:py-8">
-                                      <p className="text-xs font-black text-slate-800">{sale.users?.full_name}</p>
-                                      <p className="text-[9px] font-bold text-slate-400 uppercase">Agent</p>
+                                      <p className="text-xs font-black text-slate-800">{sale.users?.full_name || 'Inconnu'}</p>
+                                      <p className="text-[9px] font-bold text-slate-400 uppercase">Vendeur</p>
                                   </td>
                                   <td className="px-6 md:px-10 py-6 md:py-8">
                                       <p className="font-black text-slate-900 text-lg tracking-tighter leading-none mb-1 group-hover:text-brand-600 transition-colors">{sale.tickets?.username}</p>
