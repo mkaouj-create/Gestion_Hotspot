@@ -1,12 +1,13 @@
+
 import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ShoppingCart, CloudUpload, Ticket, History, Users, LogOut, Wallet, Settings, Building2, Zap, ChevronLeft, MapPin, Tag, X } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, CloudUpload, Ticket, History, Users, LogOut, Wallet, Settings, Building2, Zap, ChevronLeft, MapPin, Tag, X, Banknote } from 'lucide-react';
 import { NavItem, UserRole } from '../types.ts';
 import { db } from '../services/db.ts';
 
 interface SidebarProps { isOpen: boolean; setIsOpen: (isOpen: boolean) => void; }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
+const Sidebar: React.FC = ({ isOpen, setIsOpen }) => {
   const navigate = useNavigate();
   const [userInfo, setUserInfo] = useState<{ role: UserRole | null; fullName: string; agencyName: string; }>({ role: null, fullName: '', agencyName: '' });
 
@@ -29,6 +30,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const navItems: NavItem[] = [
     { label: 'Tableau de bord', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Guichet Vente', path: '/sales', icon: ShoppingCart },
+    { label: 'Comptabilité', path: '/accounting', icon: Banknote },
     { label: 'Import CSV', path: '/import', icon: CloudUpload },
     { label: 'Gestion Stock', path: '/stock', icon: Ticket },
     { label: 'Historique', path: '/history', icon: History },
@@ -42,9 +44,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   ];
 
   const filteredItems = navItems.filter(item => {
-    if (userInfo.role === UserRole.ADMIN_GLOBAL) return !['/sales', '/profiles', '/import', '/zones'].includes(item.path);
+    if (userInfo.role === UserRole.ADMIN_GLOBAL) return !['/sales', '/profiles', '/import', '/zones', '/accounting'].includes(item.path);
     if (userInfo.role === UserRole.GESTIONNAIRE_WIFI_ZONE || userInfo.role === UserRole.ADMIN) return !['/agencies', '/subscriptions'].includes(item.path);
-    if (userInfo.role === UserRole.REVENDEUR) return ['/dashboard', '/sales', '/history', '/stock'].includes(item.path);
+    if (userInfo.role === UserRole.REVENDEUR) return ['/dashboard', '/sales', '/accounting', '/history', '/stock'].includes(item.path);
     return ['/dashboard', '/sales', '/stock', '/history'].includes(item.path);
   });
 

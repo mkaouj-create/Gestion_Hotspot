@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Menu, Loader2 } from 'lucide-react';
@@ -8,6 +9,7 @@ const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Sales = lazy(() => import('./pages/Sales'));
+const Accounting = lazy(() => import('./pages/Accounting'));
 const Import = lazy(() => import('./pages/Import'));
 const Stock = lazy(() => import('./pages/Stock'));
 const History = lazy(() => import('./pages/History'));
@@ -134,6 +136,7 @@ const App: React.FC = () => {
                   <Routes>
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/sales" element={<Sales />} />
+                    <Route path="/accounting" element={<Accounting />} />
                     <Route path="/import" element={<Import />} />
                     <Route path="/stock" element={<Stock />} />
                     <Route path="/history" element={<History />} />

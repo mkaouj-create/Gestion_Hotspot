@@ -61,6 +61,19 @@ export interface Ticket {
   assigned_to?: string;
 }
 
+export interface LedgerEntry {
+  id: string;
+  date: string;
+  type: 'VENTE' | 'VERSEMENT';
+  amount: number;
+  description: string;
+  party_name: string;
+  method?: string;
+  status?: string;
+  tenant_id: string;
+  reference?: string;
+}
+
 export interface DashboardStats {
   revenue: number;
   soldCount: number;
