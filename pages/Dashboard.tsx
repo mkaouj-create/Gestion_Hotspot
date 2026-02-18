@@ -4,7 +4,7 @@ import {
   Users as UsersIcon, Ticket, Wallet, ShoppingCart, Loader2, RefreshCcw, 
   TrendingUp, ArrowUpRight, ShieldCheck, Building2, Clock, Activity, 
   Globe, MapPin, X, AlertCircle, Smartphone, CheckCircle2, History, 
-  Banknote, ArrowDownRight, Zap, ArrowDownLeft, Landmark
+  Banknote, ArrowDownRight, Zap, ArrowDownLeft, Landmark, AlertTriangle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
@@ -22,9 +22,11 @@ const Dashboard: React.FC = () => {
     totalAgencies: 0, 
     balance: 0,
     dailyGrowth: 0,
-    pendingPayments: 0 // Montant des versements en attente de validation
+    pendingPayments: 0,
+    margin: 0 // Nouveau : Bénéfice net estimé
   });
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [lowStockProfiles, setLowStockProfiles] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [agencyName, setAgencyName] = useState<string>('');
   const [currency, setCurrency] = useState('GNF');
@@ -56,13 +58,14 @@ const Dashboard: React.FC = () => {
       
       let stockQuery = db.from('tickets').select('*', { count: 'exact', head: true });
       let soldQuery = db.from('tickets').select('*', { count: 'exact', head: true });
-      let revQuery = db.from('sales_history').select('amount_paid, sold_at');
+      let revQuery = db.from('sales_history').select('amount_paid, tickets(cost_price)');
       let userQuery = db.from('users').select('*', { count: 'exact', head: true });
       let activityQuery = db.from('accounting_ledger').select('*').limit(8).order('entry_date', { ascending: false });
       let pendingPayQuery = db.from('payments').select('amount').eq('status', 'PENDING');
+      let lowStockQuery = db.from('ticket_profiles').select('name, low_stock_threshold, tickets(count)');
 
       if (isAdminGlobal) {
-        // Full access
+        // Stats globales...
       } else if (isReseller) {
         stockQuery = stockQuery.eq('assigned_to', user.id).eq('status', TicketStatus.ASSIGNE);
         soldQuery = soldQuery.eq('sold_by', user.id).eq('status', TicketStatus.VENDU);
@@ -76,9 +79,10 @@ const Dashboard: React.FC = () => {
         userQuery = userQuery.eq('tenant_id', tId);
         activityQuery = activityQuery.eq('tenant_id', tId);
         pendingPayQuery = pendingPayQuery.eq('tenant_id', tId);
+        lowStockQuery = lowStockQuery.eq('tenant_id', tId);
       }
 
-      const promises = [stockQuery, soldQuery, revQuery, userQuery, activityQuery, pendingPayQuery];
+      const promises = [stockQuery, soldQuery, revQuery, userQuery, activityQuery, pendingPayQuery, lowStockQuery];
 
       if (isAdminGlobal) {
         promises.push(db.from('tenants').select('*', { count: 'exact', head: true }).eq('subscription_status', 'EN_ATTENTE'));
@@ -89,18 +93,27 @@ const Dashboard: React.FC = () => {
       
       const revenueData = results[2].data || [];
       const totalRevenue = revenueData.reduce((acc: number, curr: any) => acc + Number(curr.amount_paid), 0);
+      const totalCost = revenueData.reduce((acc: number, curr: any) => acc + Number((curr.tickets as any)?.cost_price || 0), 0);
       const pendingAmt = (results[5].data || []).reduce((acc: number, curr: any) => acc + Number(curr.amount), 0);
+      
+      // Filtrage des stocks bas
+      const lowStocks = (results[6].data || []).filter((p: any) => {
+          const count = p.tickets?.[0]?.count || 0;
+          return count <= (p.low_stock_threshold || 10);
+      });
+      setLowStockProfiles(lowStocks);
 
       setStats({
         revenue: totalRevenue,
         sold: results[1].count || 0,
         stock: results[0].count || 0,
         users: results[3].count || 0,
-        pendingAgencies: isAdminGlobal ? (results[6]?.count || 0) : 0,
-        totalAgencies: isAdminGlobal ? (results[7]?.count || 0) : 0,
+        pendingAgencies: isAdminGlobal ? (results[7]?.count || 0) : 0,
+        totalAgencies: isAdminGlobal ? (results[8]?.count || 0) : 0,
         balance: profile.balance || 0,
         dailyGrowth: 0,
-        pendingPayments: pendingAmt
+        pendingPayments: pendingAmt,
+        margin: totalRevenue - totalCost
       });
 
       setRecentActivities(results[4].data || []);
@@ -128,11 +141,10 @@ const Dashboard: React.FC = () => {
               created_by: currentUser?.id
           });
           if(error) throw error;
-          setToast({ type: 'success', message: "Déclaration de versement envoyée. En attente de validation admin." });
+          setToast({ type: 'success', message: "Versement déclaré avec succès." });
           setShowDepositModal(false);
           setDepositAmount('');
           setDepositReference('');
-          setTimeout(() => setToast(null), 4000);
           fetchDashboardData();
       } catch(err: any) {
           setToast({ type: 'error', message: err.message });
@@ -148,10 +160,26 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6 md:space-y-10 animate-in fade-in duration-700">
       {toast && (
-        <div className={`fixed top-6 right-6 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right border ${toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-red-600 text-white border-red-500'}`}>
-          {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
-          <p className="font-bold text-sm tracking-tight">{toast.message}</p>
+        <div className={`fixed top-6 right-6 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right border ${toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>
+          <CheckCircle2 className="w-5 h-5 shrink-0" />
+          <p className="font-bold text-sm">{toast.message}</p>
         </div>
+      )}
+
+      {/* ALERTES STOCK BAS */}
+      {lowStockProfiles.length > 0 && !isReseller && (
+          <div className="bg-red-50 border-2 border-red-100 p-6 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-4 animate-pulse">
+              <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-red-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-red-200">
+                      <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div>
+                      <h4 className="font-black text-red-900 uppercase text-xs tracking-widest">Alerte de Stock Critique</h4>
+                      <p className="text-red-700 text-sm font-medium">Les forfaits <strong>{lowStockProfiles.map(p => p.name).join(', ')}</strong> sont presque épuisés.</p>
+                  </div>
+              </div>
+              <button onClick={() => navigate('/import')} className="bg-red-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-700 transition-all">RECHARGER MAINTENANT</button>
+          </div>
       )}
 
       {/* HEADER */}
@@ -166,24 +194,27 @@ const Dashboard: React.FC = () => {
               <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">{agencyName}</span>
               {isReseller && <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest">Compte Revendeur</span>}
             </div>
-            <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter">Hello, {currentUser?.full_name?.split(' ')[0]}</h1>
+            <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter leading-none">Hello, {currentUser?.full_name?.split(' ')[0]}</h1>
           </div>
         </div>
         
-        {!currentUser?.role.includes('ADMIN_GLOBAL') && (
-          <div className="flex items-center gap-3 relative z-10">
-            <button onClick={() => navigate('/sales')} className="bg-brand-600 hover:bg-brand-700 text-white px-8 py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl transition-all active:scale-95 group">
-              <ShoppingCart className="w-5 h-5 group-hover:-translate-y-1 transition-transform" /> VENDRE TICKETS
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-3 relative z-10">
+          {!isReseller && !currentUser?.role.includes('ADMIN_GLOBAL') && (
+            <div className="bg-emerald-50 px-6 py-4 rounded-3xl border border-emerald-100 hidden md:block">
+                <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Bénéfice Estimé</p>
+                <p className="text-xl font-black text-emerald-900">+{stats.margin.toLocaleString()} <span className="text-[10px]">{currency}</span></p>
+            </div>
+          )}
+          <button onClick={() => navigate('/sales')} className="bg-brand-600 hover:bg-brand-700 text-white px-8 py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl transition-all active:scale-95 group">
+            <ShoppingCart className="w-5 h-5 group-hover:-translate-y-1 transition-transform" /> VENDRE TICKETS
+          </button>
+        </div>
       </section>
 
       {/* KPI GRID */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* KPI 1: Chiffre d'Affaires Réalisé */}
         <KpiCard 
-          label={isReseller ? "Ma Recette de Ventes" : "Chiffre d'Affaires Agence"}
+          label={isReseller ? "Recettes de Vente" : "Chiffre d'Affaires"}
           value={stats.revenue.toLocaleString()}
           unit={currency}
           icon={<TrendingUp />}
@@ -191,7 +222,6 @@ const Dashboard: React.FC = () => {
           bg="bg-indigo-50"
         />
 
-        {/* KPI 2: Solde Actuel (Ce qu'il peut encore consommer) */}
         <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col justify-between group hover:shadow-xl transition-all">
           <div className="flex justify-between items-start mb-6">
             <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${stats.balance < 10000 ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-600'}`}>
@@ -204,7 +234,7 @@ const Dashboard: React.FC = () => {
             )}
           </div>
           <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{isReseller ? "Mon Crédit de Vente" : "Trésorerie Agence"}</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{isReseller ? "Mon Crédit Disponible" : "Solde Trésorerie"}</p>
             <div className="flex items-baseline gap-1.5">
               <h3 className={`text-3xl font-black ${stats.balance < 0 ? 'text-red-600' : 'text-slate-900'}`}>{stats.balance.toLocaleString()}</h3>
               <span className="text-[10px] font-bold text-slate-400 uppercase">{currency}</span>
@@ -212,7 +242,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* KPI 3: Versements en attente */}
         <KpiCard 
           label="Versements à Valider"
           value={stats.pendingPayments.toLocaleString()}
@@ -223,24 +252,23 @@ const Dashboard: React.FC = () => {
           onClick={isReseller ? undefined : () => navigate('/resellers')}
         />
 
-        {/* KPI 4: Stock */}
         <KpiCard 
-          label={isReseller ? "Mes Tickets en Main" : "Total Stock Agence"}
+          label={isReseller ? "Mes Vouchers" : "Stock Global"}
           value={stats.stock}
-          unit="Vouchers"
+          unit="Unités"
           icon={<Ticket />}
-          color="text-slate-600"
-          bg="bg-slate-50"
+          color={lowStockProfiles.length > 0 ? "text-red-600" : "text-slate-600"}
+          bg={lowStockProfiles.length > 0 ? "bg-red-50" : "bg-slate-50"}
           onClick={() => navigate('/stock')}
         />
       </div>
 
+      {/* FOOTER DASHBOARD */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* RECENT ACTIVITIES */}
         <div className="lg:col-span-2 bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden min-h-[400px]">
           <div className="px-10 py-8 border-b border-slate-50 flex items-center justify-between">
-            <h3 className="font-black text-slate-900 text-lg uppercase tracking-tight">Activités Récentes</h3>
-            <button onClick={() => navigate('/history')} className="text-[10px] font-black text-brand-600 uppercase tracking-widest">Voir historique</button>
+            <h3 className="font-black text-slate-900 text-lg uppercase tracking-tight">Journal d'Activité</h3>
+            <button onClick={() => navigate('/history')} className="text-[10px] font-black text-brand-600 uppercase tracking-widest">Voir complet</button>
           </div>
           <div className="divide-y divide-slate-50">
             {recentActivities.map((activity, i) => (
@@ -265,15 +293,20 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* HELP SECTION */}
         <div className="space-y-6">
             <div className="bg-slate-900 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-brand-500 rounded-full blur-[60px] opacity-20"></div>
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Action Rapide</h4>
-                <p className="text-sm font-medium text-slate-300 mb-8 leading-relaxed">Le versement permet de remettre l'argent collecté à votre administrateur pour débloquer votre crédit.</p>
-                <button onClick={() => isReseller ? setShowDepositModal(true) : navigate('/resellers')} className="w-full py-4 bg-brand-600 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-brand-900/40 hover:bg-brand-500 transition-all">
-                    {isReseller ? "DÉCLARER UN VERSEMENT" : "GÉRER LES REVENDEURS"}
-                </button>
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Performance Agence</h4>
+                <div className="space-y-6 mb-8">
+                    <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-slate-400">Taux de marge</span>
+                        <span className="text-xs font-black text-emerald-400">{stats.revenue > 0 ? Math.round((stats.margin / stats.revenue) * 100) : 0}%</span>
+                    </div>
+                    <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${stats.revenue > 0 ? Math.round((stats.margin / stats.revenue) * 100) : 0}%` }}></div>
+                    </div>
+                </div>
+                <button onClick={() => navigate('/accounting')} className="w-full py-4 bg-brand-600 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-brand-900/40 hover:bg-brand-500 transition-all">DÉTAILS COMPTABLES</button>
             </div>
         </div>
       </div>
@@ -284,32 +317,27 @@ const Dashboard: React.FC = () => {
               <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowDepositModal(false)} />
               <form onSubmit={handleSubmitVersement} className="bg-white w-full max-w-sm rounded-[3rem] p-10 relative z-10 animate-in zoom-in-95 shadow-2xl">
                   <button type="button" onClick={() => setShowDepositModal(false)} className="absolute top-8 right-8 text-slate-300 hover:text-slate-900 transition-colors"><X className="w-6 h-6" /></button>
-                  <h2 className="text-2xl font-black mb-2 uppercase text-center text-slate-900 tracking-tight">Déclarer Versement</h2>
-                  <p className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Informez l'admin de votre remise de cash</p>
-                  
+                  <h2 className="text-2xl font-black mb-8 uppercase text-center text-slate-900 tracking-tight">Déclarer Versement</h2>
                   <div className="space-y-6">
                       <div>
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Montant remis ({currency})</label>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Montant ({currency})</label>
                           <input type="number" required placeholder="ex: 150000" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-black text-xl outline-none focus:bg-white focus:ring-4 focus:ring-brand-50 transition-all" />
                       </div>
                       <div>
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Moyen utilisé</label>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Méthode</label>
                           <select value={depositMethod} onChange={e => setDepositMethod(e.target.value)} className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none appearance-none focus:bg-white focus:ring-4 focus:ring-brand-50 transition-all cursor-pointer">
-                              <option value="CASH">Remise en Espèces (Main à Main)</option>
-                              <option value="MOMO">Dépôt Mobile Money</option>
-                              <option value="OM">Dépôt Orange Money</option>
+                              <option value="CASH">Espèces</option>
+                              <option value="MOMO">Mobile Money</option>
+                              <option value="OM">Orange Money</option>
                           </select>
                       </div>
                       <div>
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Référence / Nom de l'admin</label>
-                          <div className="relative group">
-                              <Smartphone className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-brand-600 transition-colors" />
-                              <input type="text" placeholder="Qui a reçu l'argent ?" value={depositReference} onChange={e => setDepositReference(e.target.value)} className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl font-black text-lg outline-none focus:bg-white focus:ring-4 focus:ring-brand-50 transition-all" />
-                          </div>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Preuve / Référence</label>
+                          <input type="text" placeholder="Qui a reçu le cash ?" value={depositReference} onChange={e => setDepositReference(e.target.value)} className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-black text-lg outline-none focus:bg-white transition-all" />
                       </div>
                   </div>
-                  <button type="submit" disabled={isSubmittingDeposit} className="w-full mt-10 py-5 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95">
-                      {isSubmittingDeposit ? <Loader2 className="w-5 h-5 animate-spin" /> : <><ArrowUpRight className="w-4 h-4" /> ENVOYER MA DÉCLARATION</>}
+                  <button type="submit" disabled={isSubmittingDeposit} className="w-full mt-10 py-5 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-xl hover:bg-emerald-700 transition-all">
+                      {isSubmittingDeposit ? <Loader2 className="w-5 h-5 animate-spin" /> : "ENVOYER LA DÉCLARATION"}
                   </button>
               </form>
           </div>
