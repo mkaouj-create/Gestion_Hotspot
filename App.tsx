@@ -24,6 +24,7 @@ const Zones = lazy(() => import('./pages/Zones'));
 const Profiles = lazy(() => import('./pages/Profiles'));
 const PendingApproval = lazy(() => import('./pages/PendingApproval'));
 const Maintenance = lazy(() => import('./pages/Maintenance'));
+const Tutorials = lazy(() => import('./pages/Tutorials'));
 
 const GlobalLoader = () => (
   <div className="h-screen w-full flex flex-col items-center justify-center bg-[#f8fafc]">
@@ -40,7 +41,6 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <Suspense fallback={null}><Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} /></Suspense>
         
         <div className="flex-1 flex flex-col h-full overflow-hidden relative w-full">
-          {/* Mobile Header */}
           <header className="lg:hidden bg-white border-b border-slate-100 px-4 py-3 flex items-center justify-between shrink-0 z-30 sticky top-0">
             <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-black">G</div>
@@ -71,12 +71,10 @@ const App: React.FC = () => {
 
   const syncProfile = async (userId: string) => {
     try {
-      // 1. Vérifier le mode maintenance global
       const { data: config } = await db.from('saas_settings').select('is_maintenance_mode').maybeSingle();
       const maintenanceActive = config?.is_maintenance_mode || false;
       setIsMaintenance(maintenanceActive);
 
-      // 2. Récupérer le profil utilisateur
       const { data } = await db.from('users').select('*').eq('id', userId).maybeSingle();
       
       if (data) {
@@ -91,13 +89,11 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    // Initial fetch
     db.auth.getUser().then(({ data: { user } }) => {
       setSession(user ? { user } : null);
       if (user) syncProfile(user.id); else setLoading(false);
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = db.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT') {
             setSession(null);
@@ -113,12 +109,7 @@ const App: React.FC = () => {
   }, []);
 
   if (loading) return <GlobalLoader />;
-
-  // LOGIQUE DE BLOCAGE MAINTENANCE
-  // Si maintenance active ET utilisateur connecté ET n'est pas Admin Global => Blocage
-  if (session && isMaintenance && !authState.isAdminGlobal) {
-    return <Maintenance />;
-  }
+  if (session && isMaintenance && !authState.isAdminGlobal) return <Maintenance />;
 
   return (
     <BrowserRouter>
@@ -143,6 +134,7 @@ const App: React.FC = () => {
                     <Route path="/agencies" element={<Agencies />} />
                     <Route path="/users" element={<Users />} />
                     <Route path="/resellers" element={<Resellers />} />
+                    <Route path="/tutorials" element={<Tutorials />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/subscriptions" element={<Subscriptions />} />
                     <Route path="/zones" element={<Zones />} />
