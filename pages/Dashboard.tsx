@@ -4,7 +4,7 @@ import {
   Users as UsersIcon, Ticket, Wallet, ShoppingCart, Loader2, RefreshCcw, 
   TrendingUp, ArrowUpRight, ShieldCheck, Building2, Clock, Activity, 
   Globe, MapPin, X, AlertCircle, Smartphone, CheckCircle2, History, 
-  Banknote, ArrowDownRight, Zap
+  Banknote, ArrowDownRight, Zap, ArrowDownLeft
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
@@ -23,7 +23,7 @@ const Dashboard: React.FC = () => {
     balance: 0,
     dailyGrowth: 0 
   });
-  const [recentSales, setRecentSales] = useState<any[]>([]);
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [agencyName, setAgencyName] = useState<string>('');
   const [currency, setCurrency] = useState('GNF');
@@ -53,15 +53,14 @@ const Dashboard: React.FC = () => {
       const isReseller = profile.role === UserRole.REVENDEUR;
       const tId = profile.tenant_id;
       
+      // 1. Requêtes de base pour les compteurs
       let stockQuery = db.from('tickets').select('*', { count: 'exact', head: true });
       let soldQuery = db.from('tickets').select('*', { count: 'exact', head: true });
       let revQuery = db.from('sales_history').select('amount_paid, sold_at');
       let userQuery = db.from('users').select('*', { count: 'exact', head: true });
       
-      let salesQuery = db.from('sales_history')
-        .select('*, tenants(name), tickets(username, ticket_profiles(name))')
-        .order('sold_at', { ascending: false })
-        .limit(8);
+      // 2. Requête unifiée pour les activités récentes (Ventes + Versements)
+      let activityQuery = db.from('accounting_ledger').select('*').limit(8).order('entry_date', { ascending: false });
 
       if (isAdminGlobal) {
         // Stats globales
@@ -69,16 +68,16 @@ const Dashboard: React.FC = () => {
         stockQuery = stockQuery.eq('assigned_to', user.id).eq('status', TicketStatus.ASSIGNE);
         soldQuery = soldQuery.eq('sold_by', user.id).eq('status', TicketStatus.VENDU);
         revQuery = revQuery.eq('seller_id', user.id);
-        salesQuery = salesQuery.eq('seller_id', user.id);
+        activityQuery = activityQuery.eq('user_id', user.id);
       } else {
         stockQuery = stockQuery.eq('tenant_id', tId).eq('status', TicketStatus.NEUF);
         soldQuery = soldQuery.eq('tenant_id', tId).eq('status', TicketStatus.VENDU);
         revQuery = revQuery.eq('tenant_id', tId);
         userQuery = userQuery.eq('tenant_id', tId);
-        salesQuery = salesQuery.eq('tenant_id', tId);
+        activityQuery = activityQuery.eq('tenant_id', tId);
       }
 
-      const promises = [stockQuery, soldQuery, revQuery, userQuery, salesQuery];
+      const promises = [stockQuery, soldQuery, revQuery, userQuery, activityQuery];
 
       if (isAdminGlobal) {
         promises.push(db.from('tenants').select('*', { count: 'exact', head: true }).eq('subscription_status', 'EN_ATTENTE'));
@@ -86,33 +85,32 @@ const Dashboard: React.FC = () => {
       }
 
       const results = await Promise.all(promises);
-      const stockRes = results[0];
-      const soldRes = results[1];
-      const revRes = results[2];
-      const userRes = results[3];
-      const salesRes = results[4];
       
-      const pendingRes = isAdminGlobal ? results[5] : { count: 0 };
-      const totalAgenciesRes = isAdminGlobal ? results[6] : { count: 0 };
-
-      // Calculez la croissance quotidienne (ventes d'aujourd'hui vs hier)
+      // Calcul du revenu et croissance
+      const revenueData = results[2].data || [];
+      const totalRevenue = revenueData.reduce((acc: number, curr: any) => acc + Number(curr.amount_paid), 0);
       const today = new Date().toISOString().split('T')[0];
-      const todaySales = (revRes.data || []).filter((s: any) => s.sold_at.startsWith(today));
+      const todaySales = revenueData.filter((s: any) => s.sold_at.startsWith(today));
       const todayRev = todaySales.reduce((acc: number, curr: any) => acc + Number(curr.amount_paid), 0);
 
       setStats({
-        revenue: (revRes.data || []).reduce((acc: number, curr: any) => acc + Number(curr.amount_paid), 0) || 0,
-        sold: soldRes.count || 0,
-        stock: stockRes.count || 0,
-        users: userRes.count || 0,
-        pendingAgencies: pendingRes.count || 0,
-        totalAgencies: totalAgenciesRes.count || 0,
+        revenue: totalRevenue,
+        sold: results[1].count || 0,
+        stock: results[0].count || 0,
+        users: results[3].count || 0,
+        pendingAgencies: isAdminGlobal ? (results[5]?.count || 0) : 0,
+        totalAgencies: isAdminGlobal ? (results[6]?.count || 0) : 0,
         balance: profile.balance || 0,
         dailyGrowth: todayRev
       });
-      setRecentSales(salesRes.data || []);
 
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+      setRecentActivities(results[4].data || []);
+
+    } catch (err) { 
+      console.error("Dashboard Fetch Error:", err); 
+    } finally { 
+      setLoading(false); 
+    }
   }, []);
 
   useEffect(() => { fetchDashboardData(); }, [fetchDashboardData]);
@@ -130,9 +128,7 @@ const Dashboard: React.FC = () => {
               status: 'PENDING',
               created_by: currentUser?.id
           });
-
           if(error) throw error;
-
           setToast({ type: 'success', message: "Demande de rechargement envoyée." });
           setShowDepositModal(false);
           setDepositAmount('');
@@ -209,7 +205,7 @@ const Dashboard: React.FC = () => {
       {/* KPI GRID */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <KpiCard 
-          label={isAdminGlobal ? "Chiffre d'Affaires Global" : "Mon Chiffre d'Affaires"}
+          label={isAdminGlobal ? "Volume d'Affaires Global" : "Chiffre d'Affaires"}
           value={stats.revenue.toLocaleString()}
           unit={currency}
           icon={<Wallet />}
@@ -289,39 +285,44 @@ const Dashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-10 items-start">
-        {/* RECENT SALES TABLE */}
+        {/* RECENT ACTIVITIES (UNIFIED) */}
         <div className="xl:col-span-2 bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden min-h-[500px]">
           <div className="px-10 py-8 border-b border-slate-50 flex items-center justify-between">
-            <h3 className="font-black text-slate-900 text-lg tracking-tight uppercase">Dernières Activités</h3>
-            <button onClick={() => navigate('/history')} className="text-[10px] font-black text-brand-600 hover:underline uppercase tracking-widest">Voir tout le journal</button>
+            <h3 className="font-black text-slate-900 text-lg tracking-tight uppercase">Journal Récent</h3>
+            <button onClick={() => navigate('/accounting')} className="text-[10px] font-black text-brand-600 hover:underline uppercase tracking-widest">Voir la comptabilité</button>
           </div>
           <div className="divide-y divide-slate-50">
-            {recentSales.length > 0 ? recentSales.map((sale, i) => (
-              <div key={i} className="px-10 py-6 flex items-center justify-between hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => navigate('/history')}>
-                <div className="flex items-center gap-5">
-                  <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-brand-50 group-hover:text-brand-600 transition-all border border-slate-200 group-hover:border-brand-100">
-                    <Ticket className="w-6 h-6" />
+            {recentActivities.length > 0 ? recentActivities.map((activity, i) => {
+              const isVente = activity.entry_type === 'VENTE';
+              return (
+                <div key={i} className="px-10 py-6 flex items-center justify-between hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => navigate(isVente ? '/history' : '/accounting')}>
+                  <div className="flex items-center gap-5">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all border ${isVente ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
+                      {isVente ? <Ticket className="w-6 h-6" /> : <Banknote className="w-6 h-6" />}
+                    </div>
+                    <div>
+                      <p className="font-black text-slate-900 text-sm">{activity.description}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{activity.party_name}</span>
+                        <span className="w-1 h-1 bg-slate-200 rounded-full"></span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">{new Date(activity.entry_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-black text-slate-900 text-sm">{sale.tickets?.username}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      {isAdminGlobal ? sale.tenants?.name : sale.tickets?.ticket_profiles?.name}
+                  <div className="text-right">
+                    <p className={`font-black text-lg ${isVente ? 'text-slate-900' : 'text-emerald-600'}`}>
+                      {isVente ? '-' : '+'}{Number(activity.amount).toLocaleString()}
                     </p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{currency}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-black text-slate-900">{Number(sale.amount_paid).toLocaleString()} {currency}</p>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                    {new Date(sale.sold_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                  </p>
-                </div>
-              </div>
-            )) : (
+              );
+            }) : (
               <div className="p-24 text-center flex flex-col items-center gap-4">
                 <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center text-slate-200">
                   <Activity className="w-10 h-10" />
                 </div>
-                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Aucune vente enregistrée</p>
+                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Aucun flux récent</p>
               </div>
             )}
           </div>
@@ -332,10 +333,10 @@ const Dashboard: React.FC = () => {
            <div className="bg-slate-900 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500 rounded-full blur-[100px] opacity-20 -mr-20 -mt-20 group-hover:opacity-30 transition-opacity"></div>
               <div className="relative z-10">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-10">Performance du Forfait</h4>
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-10">Stock & Performance</h4>
                 <div className="space-y-6">
                    <div className="flex items-center justify-between">
-                     <span className="text-xs font-bold text-slate-400">Écoulement Stock</span>
+                     <span className="text-xs font-bold text-slate-400">Taux d'écoulement</span>
                      <span className="text-xs font-black text-brand-400">{stats.sold > 0 ? Math.round((stats.sold / (stats.sold + stats.stock)) * 100) : 0}%</span>
                    </div>
                    <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
@@ -346,9 +347,9 @@ const Dashboard: React.FC = () => {
                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
                       <div className="flex items-center gap-3">
                         <Activity className="w-4 h-4 text-emerald-400" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Statut Réseau</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Infrastructure</span>
                       </div>
-                      <span className="text-[10px] font-black text-emerald-400 uppercase">Stable</span>
+                      <span className="text-[10px] font-black text-emerald-400 uppercase">En ligne</span>
                    </div>
                 </div>
               </div>
@@ -360,8 +361,8 @@ const Dashboard: React.FC = () => {
                    <Banknote className="w-6 h-6" />
                  </div>
                  <div>
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Comptabilité</p>
-                   <p className="text-sm font-black text-slate-900">Journal Financier</p>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Finance</p>
+                   <p className="text-sm font-black text-slate-900">Journal Comptable</p>
                  </div>
               </div>
               <ArrowUpRight className="w-5 h-5 text-slate-200 group-hover:text-brand-600 transition-colors" />
@@ -373,8 +374,8 @@ const Dashboard: React.FC = () => {
                    <MapPin className="w-6 h-6" />
                  </div>
                  <div>
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Infrastructure</p>
-                   <p className="text-sm font-black text-slate-900">Zones WiFi Actives</p>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Zones WiFi</p>
+                   <p className="text-sm font-black text-slate-900">Carte du Réseau</p>
                  </div>
               </div>
               <ArrowUpRight className="w-5 h-5 text-slate-200 group-hover:text-brand-600 transition-colors" />
@@ -388,25 +389,25 @@ const Dashboard: React.FC = () => {
               <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowDepositModal(false)} />
               <form onSubmit={handleSubmitDeposit} className="bg-white w-full max-w-sm rounded-[3rem] p-10 relative z-10 animate-in zoom-in-95 shadow-2xl">
                   <button type="button" onClick={() => setShowDepositModal(false)} className="absolute top-8 right-8 text-slate-300 hover:text-slate-900 transition-colors"><X className="w-6 h-6" /></button>
-                  <h2 className="text-2xl font-black mb-8 uppercase text-center text-slate-900 tracking-tight">Recharger mon compte</h2>
+                  <h2 className="text-2xl font-black mb-8 uppercase text-center text-slate-900 tracking-tight">Demander Crédit</h2>
                   <div className="space-y-6">
                       <div>
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Montant à verser ({currency})</label>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Montant ({currency})</label>
                           <input type="number" required placeholder="ex: 200000" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-black text-xl outline-none focus:bg-white focus:ring-4 focus:ring-emerald-50 transition-all" />
                       </div>
                       <div>
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Méthode de paiement</label>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Moyen de paiement</label>
                           <select value={depositMethod} onChange={e => setDepositMethod(e.target.value)} className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl font-black outline-none appearance-none focus:bg-white focus:ring-4 focus:ring-emerald-50 transition-all cursor-pointer">
-                              <option value="CASH">Espèces / Direct</option>
+                              <option value="CASH">Espèces</option>
                               <option value="MOMO">Mobile Money</option>
                               <option value="OM">Orange Money</option>
                           </select>
                       </div>
                       <div>
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Référence / Preuve</label>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">N° de transaction</label>
                           <div className="relative group">
                               <Smartphone className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-emerald-600 transition-colors" />
-                              <input type="text" required placeholder="N° de transaction ou Réf" value={depositReference} onChange={e => setDepositReference(e.target.value)} className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl font-black text-lg outline-none focus:bg-white focus:ring-4 focus:ring-emerald-50 transition-all" />
+                              <input type="text" required placeholder="Référence" value={depositReference} onChange={e => setDepositReference(e.target.value)} className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl font-black text-lg outline-none focus:bg-white focus:ring-4 focus:ring-emerald-50 transition-all" />
                           </div>
                       </div>
                   </div>
@@ -439,7 +440,7 @@ const KpiCard = ({ label, value, unit, icon, color, bg, onClick, border, trend }
     <div>
       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate">{label}</p>
       <div className="flex items-baseline gap-1.5 flex-wrap">
-        <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{value}</h3>
+        <h3 className={`text-3xl font-black text-slate-900 tracking-tighter`}>{value}</h3>
         <span className="text-[10px] font-bold text-slate-400 uppercase">{unit}</span>
       </div>
     </div>

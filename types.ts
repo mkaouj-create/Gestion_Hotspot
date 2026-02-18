@@ -63,8 +63,8 @@ export interface Ticket {
 
 export interface LedgerEntry {
   id: string;
-  date: string;
-  type: 'VENTE' | 'VERSEMENT';
+  entry_date: string;
+  entry_type: 'VENTE' | 'VERSEMENT';
   amount: number;
   description: string;
   party_name: string;
@@ -72,6 +72,7 @@ export interface LedgerEntry {
   status?: string;
   tenant_id: string;
   reference?: string;
+  user_id?: string;
 }
 
 export interface DashboardStats {

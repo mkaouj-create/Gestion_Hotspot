@@ -1,46 +1,24 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  ArrowRight, Tag, Gift, ShieldCheck, CheckCircle2, Database, 
-  ShoppingCart, BarChart3, Sparkles, ChevronDown, HelpCircle, 
-  Plus, Minus, MessageCircle, Search, Ticket, Loader2, AlertCircle
+  ArrowRight, 
+  Tag, 
+  Gift,
+  ShieldCheck,
+  CheckCircle2,
+  Database,
+  ShoppingCart,
+  BarChart3,
+  Sparkles,
+  ChevronDown,
+  HelpCircle,
+  Plus,
+  Minus,
+  MessageCircle
 } from 'lucide-react';
-import { db } from '../services/db';
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
-  const [lookupCode, setLookupCode] = useState('');
-  const [isLookingUp, setIsLookingUp] = useState(false);
-  const [lookupResult, setLookupResult] = useState<any>(null);
-  const [lookupError, setLookupError] = useState<string | null>(null);
-
-  const handleLookup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!lookupCode.trim() || isLookingUp) return;
-    
-    setIsLookingUp(true);
-    setLookupError(null);
-    setLookupResult(null);
-
-    try {
-      const { data, error } = await db.from('tickets')
-        .select('username, status, sold_at, ticket_profiles(name)')
-        .eq('username', lookupCode.trim())
-        .maybeSingle();
-
-      if (error) throw error;
-      if (!data) {
-        setLookupError("Code introuvable. Vérifiez la saisie.");
-      } else {
-        setLookupResult(data);
-      }
-    } catch (err: any) {
-      setLookupError("Erreur technique. Réessayez plus tard.");
-    } finally {
-      setIsLookingUp(false);
-    }
-  };
 
   const whatsappMessage = encodeURIComponent("Bonjour, je souhaite avoir plus d'informations sur Gestion_Hotspot.");
   const whatsappUrl = `https://wa.me/224625976411?text=${whatsappMessage}`;
@@ -48,164 +26,243 @@ const Landing: React.FC = () => {
   return (
     <div className="bg-brand-950 min-h-screen font-sans selection:bg-brand-500 selection:text-white overflow-x-hidden relative">
       
-      {/* FLOATING WHATSAPP */}
-      <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 z-[100] bg-[#25D366] text-white p-4 md:p-5 rounded-full shadow-2xl transition-transform hover:scale-110 active:scale-95 animate-in slide-in-from-bottom-10 duration-700">
-        <MessageCircle className="w-6 h-6 md:w-7 md:h-7 fill-current" />
+      {/* FLOATING WHATSAPP BUTTON */}
+      <a 
+        href={whatsappUrl}
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="fixed bottom-4 right-4 md:bottom-8 md:right-8 z-[100] bg-[#25D366] hover:bg-[#20bd5a] text-white px-5 py-3 md:px-6 md:py-4 rounded-full shadow-2xl flex items-center justify-center gap-3 transition-transform hover:scale-105 group animate-in slide-in-from-bottom-10 duration-700 active:scale-95"
+      >
+        <MessageCircle className="w-5 h-5 md:w-6 md:h-6 fill-current" />
+        <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">SUPPORT WHATSAPP</span>
       </a>
 
       {/* Navigation */}
-      <nav className="max-w-7xl mx-auto px-6 py-8 flex items-center justify-between relative z-50">
-        <div className="flex items-center gap-4 group cursor-pointer" onClick={() => navigate('/')}>
-          <div className="w-11 h-11 bg-brand-500 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-brand-500/20">G</div>
-          <span className="text-xl font-black text-white tracking-tighter">Gestion_Hotspot</span>
+      <nav className="max-w-7xl mx-auto px-6 py-6 md:py-8 flex items-center justify-between relative z-50">
+        <div className="flex items-center gap-3 md:gap-4 group cursor-pointer" onClick={() => navigate('/')}>
+          <div className="w-9 h-9 md:w-11 md:h-11 bg-brand-500 rounded-xl md:rounded-2xl flex items-center justify-center text-white font-black text-lg md:text-2xl shadow-lg shadow-brand-500/20">
+            G
+          </div>
+          <span className="text-lg md:text-xl font-black text-white tracking-tighter">Gestion_Hotspot</span>
         </div>
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/login')} className="hidden sm:block text-[10px] font-black text-white px-8 py-3.5 rounded-2xl border border-white/10 hover:bg-white/5 tracking-widest uppercase transition-all">CONNEXION</button>
-          <button onClick={() => navigate('/register-agency')} className="bg-white hover:bg-brand-50 text-brand-950 px-8 py-3.5 rounded-2xl font-black text-[10px] tracking-widest uppercase transition-all shadow-xl">CRÉER AGENCE</button>
+        
+        <div className="flex items-center gap-3 md:gap-4">
+          <button 
+            onClick={() => navigate('/login')}
+            className="hidden sm:block text-[10px] font-black text-white px-6 py-3 rounded-xl border border-white/10 hover:bg-white/5 tracking-widest uppercase transition-all"
+          >
+            CONNEXION
+          </button>
+          <button 
+            onClick={() => navigate('/register-agency')}
+            className="bg-brand-500 hover:bg-brand-600 text-white px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl font-black text-[10px] tracking-widest uppercase transition-all shadow-xl shadow-brand-500/30"
+          >
+            DÉMARRER
+          </button>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="relative pt-20 pb-40 px-6">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-5xl h-[600px] bg-brand-500/10 blur-[150px] rounded-full pointer-events-none"></div>
+      <section className="relative pt-12 md:pt-20 pb-20 md:pb-40 px-6 overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-96 bg-brand-500/10 blur-[120px] rounded-full pointer-events-none"></div>
+        
         <div className="max-w-5xl mx-auto text-center relative z-10">
-          <div className="flex flex-wrap items-center justify-center gap-4 mb-16">
-            <div className="bg-[#122A42] border border-brand-500/30 px-5 py-2.5 rounded-2xl flex items-center gap-2">
-              <Tag className="w-4 h-4 text-brand-500" />
-              <span className="text-[10px] font-black text-brand-100 uppercase tracking-widest">SaaS Multi-Utilisateurs</span>
+          <div className="flex flex-wrap items-center justify-center gap-3 md:gap-4 mb-10 md:mb-16">
+            <div className="flex items-center gap-2 bg-[#122A42] border border-brand-500/30 px-4 py-2 md:px-5 md:py-2.5 rounded-2xl">
+              <Tag className="w-3 h-3 md:w-4 md:h-4 text-brand-500" />
+              <span className="text-[9px] md:text-[10px] font-black text-brand-100 uppercase tracking-widest">TARIFS DISPONIBLES</span>
             </div>
-            <div className="bg-[#0E2E2A] border border-emerald-500/30 px-5 py-2.5 rounded-2xl flex items-center gap-2">
-              <Gift className="w-4 h-4 text-emerald-500" />
-              <span className="text-[10px] font-black text-emerald-100 uppercase tracking-widest">Essai Gratuit 30 Jours</span>
+            <div className="flex items-center gap-2 bg-[#0E2E2A] border border-emerald-500/30 px-4 py-2 md:px-5 md:py-2.5 rounded-2xl">
+              <Gift className="w-3 h-3 md:w-4 md:h-4 text-emerald-500" />
+              <span className="text-[9px] md:text-[10px] font-black text-emerald-100 uppercase tracking-widest">30 JOURS D'ESSAI</span>
             </div>
           </div>
 
-          <h1 className="text-5xl md:text-[9.5rem] font-black text-white leading-[0.9] tracking-tighter mb-8 animate-in slide-in-from-bottom-10 duration-1000">
-            Digitalisez votre <br/> 
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-indigo-500">Business WiFi.</span>
-          </h1>
+          <div className="mb-8 md:mb-12">
+            <div className="inline-block bg-brand-500 text-white px-4 md:px-8 py-1 md:py-2 transform -rotate-1 mb-2 md:mb-4">
+              <span className="text-2xl md:text-7xl font-black uppercase tracking-tight">Digitalisez votre</span>
+            </div>
+            <h1 className="text-5xl md:text-[9.5rem] font-black text-white leading-[0.9] tracking-tight mb-2 md:mb-4">
+              Business
+            </h1>
+            <div className="text-3xl md:text-7xl font-black text-[#5C718A] tracking-tight">
+              WiFi Zone<span className="text-brand-500">.</span>
+            </div>
+          </div>
           
-          <p className="max-w-2xl mx-auto text-lg md:text-2xl text-[#8E9EAF] font-medium leading-relaxed mb-16">
-            La solution cloud n°1 en Afrique pour gérer vos tickets MikroTik, automatiser vos revendeurs et sécuriser vos revenus.
+          <div className="max-w-3xl mx-auto mb-12 md:mb-20 px-2">
+            <p className="text-base md:text-2xl text-[#8E9EAF] font-medium leading-relaxed mb-1">
+              La plateforme cloud pour automatiser vos ventes et booster votre chiffre d'affaires. 
+            </p>
+            <div className="relative inline-block">
+              <span className="text-base md:text-2xl text-white font-black leading-relaxed">
+                Gérez votre stock de tickets MikroTik en temps réel.
+              </span>
+              <div className="absolute -bottom-1 md:-bottom-2 left-0 w-full h-1 md:h-1.5 bg-brand-500 rounded-full opacity-80"></div>
+            </div>
+          </div>
+
+          <button 
+            onClick={() => navigate('/register-agency')}
+            className="w-full md:w-auto group bg-white hover:bg-brand-50 text-slate-900 px-8 py-5 md:px-16 md:py-7 rounded-2xl md:rounded-[2.5rem] font-black text-xs md:text-sm tracking-[0.2em] uppercase transition-all shadow-2xl flex items-center justify-center gap-4 mx-auto transform hover:scale-[1.03] active:scale-[0.98]"
+          >
+            LANCER MON AGENCE
+            <ArrowRight className="w-5 h-5 md:w-6 md:h-6 group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="bg-white py-20 md:py-32 px-6">
+        <div className="max-w-7xl mx-auto text-center mb-16 md:mb-24">
+          <div className="flex items-center justify-center gap-2 text-brand-500 mb-4">
+            <Sparkles className="w-5 h-5" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Excellence opérationnelle</span>
+          </div>
+          <h2 className="text-3xl md:text-6xl font-black text-slate-900 tracking-tight mb-4 md:mb-6">DOMINEZ VOTRE MARCHÉ</h2>
+          <p className="text-slate-400 font-medium text-sm md:text-lg max-w-2xl mx-auto">
+            Optimisé pour les environnements à faible bande passante, Gestion_Hotspot est l'allié numéro 1 des gérants en Afrique.
           </p>
+        </div>
 
-          <div className="flex flex-col md:flex-row items-center justify-center gap-6">
-            <button onClick={() => navigate('/register-agency')} className="w-full md:w-auto bg-brand-500 hover:bg-brand-600 text-white px-16 py-7 rounded-[2.5rem] font-black text-sm tracking-widest uppercase transition-all shadow-2xl flex items-center justify-center gap-4 group">
-              LANCER MON AGENCE <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
-            </button>
-            <div className="w-px h-12 bg-white/10 hidden md:block"></div>
-            <a href="#lookup" className="text-white/60 hover:text-white font-black text-xs uppercase tracking-widest transition-colors flex items-center gap-2">
-              VÉRIFIER UN TICKET <ChevronDown className="w-4 h-4" />
-            </a>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12 max-w-7xl mx-auto">
+          <LandingFeatureCard 
+            icon={<Database className="w-6 h-6 md:w-7 md:h-7" />}
+            title="STOCK CLOUD"
+            description="Importez vos fichiers .CSV MikroTik en 2 secondes. Vos vouchers sont sécurisés et accessibles partout."
+          />
+          <LandingFeatureCard 
+            icon={<ShoppingCart className="w-6 h-6 md:w-7 md:h-7" />}
+            title="GUICHET RAPIDE"
+            description="Vendez des tickets depuis votre mobile. Générez des reçus WhatsApp et QR codes instantanément."
+          />
+          <LandingFeatureCard 
+            icon={<BarChart3 className="w-6 h-6 md:w-7 md:h-7" />}
+            title="REPORTING LIVE"
+            description="Suivez vos recettes, contrôlez vos vendeurs et analysez vos meilleures zones depuis un seul dashboard."
+          />
         </div>
       </section>
 
-      {/* LOOKUP SECTION (Public Access) */}
-      <section id="lookup" className="bg-white py-32 px-6">
+      {/* FAQ Section */}
+      <section className="bg-brand-950 py-20 md:py-32 px-6 relative overflow-hidden">
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-brand-500 rounded-full blur-[150px] opacity-10 -mr-48 -mb-48"></div>
+        
         <div className="max-w-4xl mx-auto">
-          <div className="bg-slate-50 border border-slate-100 rounded-[4rem] p-10 md:p-20 text-center shadow-inner relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-10 opacity-[0.03] rotate-12 pointer-events-none">
-              <Ticket className="w-64 h-64 text-slate-900" />
+          <div className="text-center mb-12 md:mb-20">
+            <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full mb-6">
+              <HelpCircle className="w-4 h-4 text-brand-500" />
+              <span className="text-[10px] font-black text-brand-100 uppercase tracking-widest">Questions Fréquentes</span>
             </div>
-            
-            <div className="relative z-10 mb-12">
-              <span className="text-[10px] font-black text-brand-600 uppercase tracking-[0.3em] mb-4 block">Espace Client Final</span>
-              <h2 className="text-3xl md:text-6xl font-black text-slate-900 tracking-tighter uppercase mb-6">Vérifier mon ticket</h2>
-              <p className="text-slate-400 font-medium text-sm md:text-lg max-w-lg mx-auto leading-relaxed">
-                Entrez le code de votre voucher pour consulter sa validité et les détails de votre forfait.
-              </p>
-            </div>
+            <h2 className="text-3xl md:text-6xl font-black text-white tracking-tight mb-4 md:mb-6 uppercase">
+              Tout ce que vous <br className="hidden md:block" /> devez savoir
+            </h2>
+            <p className="text-[#8E9EAF] font-medium text-sm md:text-base max-w-xl mx-auto">
+              Vous avez des doutes ? Voici les réponses aux questions les plus posées par nos partenaires.
+            </p>
+          </div>
 
-            <form onSubmit={handleLookup} className="relative z-10 max-w-md mx-auto mb-10">
-              <div className="relative group">
-                <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-300 group-focus-within:text-brand-600 transition-colors" />
-                <input 
-                  type="text" 
-                  placeholder="EX: MIK-8927-2" 
-                  value={lookupCode}
-                  onChange={e => setLookupCode(e.target.value.toUpperCase())}
-                  className="w-full pl-16 pr-6 py-6 rounded-[2.5rem] border border-slate-100 bg-white shadow-xl focus:ring-8 focus:ring-brand-50 outline-none font-black text-slate-900 text-xl md:text-2xl placeholder:text-slate-200 transition-all text-center"
-                />
-              </div>
-              <button 
-                type="submit" 
-                disabled={isLookingUp}
-                className="w-full mt-6 py-6 bg-slate-900 hover:bg-black text-white rounded-[2.5rem] font-black uppercase text-xs tracking-[0.3em] shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3"
-              >
-                {isLookingUp ? <Loader2 className="w-6 h-6 animate-spin" /> : "VÉRIFIER LA VALIDITÉ"}
-              </button>
-            </form>
-
-            {lookupError && (
-              <div className="relative z-10 p-5 bg-red-50 border border-red-100 rounded-3xl text-red-600 font-black text-sm flex items-center justify-center gap-3 animate-in zoom-in-95">
-                <AlertCircle className="w-5 h-5" /> {lookupError}
-              </div>
-            )}
-
-            {lookupResult && (
-              <div className="relative z-10 bg-white p-10 rounded-[3rem] shadow-2xl border border-emerald-100 animate-in zoom-in-95 text-left">
-                <div className="flex items-center gap-4 mb-8">
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${lookupResult.status === 'VENDU' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                    <CheckCircle2 className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <h4 className="text-2xl font-black text-slate-900 tracking-tight">{lookupResult.username}</h4>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{lookupResult.ticket_profiles?.name}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-6 border-t border-slate-50 pt-8">
-                  <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Statut</p>
-                    <span className={`inline-block px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${lookupResult.status === 'VENDU' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                      {lookupResult.status === 'VENDU' ? 'ACTIF / VALIDE' : 'NON ACTIVÉ'}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Activé le</p>
-                    <p className="text-xs font-black text-slate-700">
-                      {lookupResult.sold_at ? new Date(lookupResult.sold_at).toLocaleDateString('fr-FR') : 'N/A'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+          <div className="space-y-4">
+            <FAQItem 
+              question="Est-ce compatible avec tous les routeurs MikroTik ?"
+              answer="Oui. Tant que votre routeur peut générer ou exporter une liste de vouchers au format CSV (ou texte), Gestion_Hotspot peut les importer. Nous supportons tous les profils (Heure, Jour, Semaine, Volume)."
+            />
+            <FAQItem 
+              question="Comment fonctionne le système de revendeurs ?"
+              answer="C'est un système de solde prépayé. Vous (le gérant) créditez le compte d'un revendeur. À chaque vente effectuée par le revendeur via l'application, le montant du ticket est automatiquement déduit de son solde. C'est simple, transparent et sans risque."
+            />
+            <FAQItem 
+              question="Que se passe-t-il en cas de coupure internet ?"
+              answer="Gestion_Hotspot est optimisé pour les zones à faible connectivité. Bien que le cloud nécessite une connexion pour synchroniser les ventes, l'interface est ultra-légère pour fonctionner même avec une connexion 2G instable."
+            />
+            <FAQItem 
+              question="Mes tickets sont-ils sécurisés ?"
+              answer="Absolument. Vos tickets sont stockés dans une base de données isolée et cryptée. Seuls vous et les agents autorisés pouvez y accéder. Une fois un ticket vendu, il est marqué comme tel et ne peut plus être revendu."
+            />
+            <FAQItem 
+              question="Y a-t-il des frais mensuels ?"
+              answer="Actuellement, vous bénéficiez d'un essai gratuit de 30 jours pour tester toutes les fonctionnalités. Ensuite, un abonnement mensuel abordable sera mis en place pour garantir la maintenance du service cloud."
+            />
           </div>
         </div>
       </section>
 
-      {/* Rest of Landing Section... */}
-      <section className="bg-brand-950 py-32 px-6">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-12">
-          <FeatureCard 
-            icon={<Database />} title="GESTION CLOUD" 
-            desc="Centralisez tous vos codes vouchers. Importez, suivez et contrôlez votre stock à distance." 
-          />
-          <FeatureCard 
-            icon={<ShoppingCart />} title="VENTE MULTI-AGENTS" 
-            desc="Créez des accès pour vos revendeurs. Ils vendent via l'app, vous touchez vos commissions." 
-          />
-          <FeatureCard 
-            icon={<ShieldCheck />} title="SÉCURITÉ SAAS" 
-            desc="Isolation multi-tenant. Vos données sont privées, sécurisées et accessibles 24/7." 
-          />
+      {/* Trust Section */}
+      <section className="bg-slate-50 py-20 md:py-32 px-6 border-y border-slate-100">
+        <div className="max-w-4xl mx-auto bg-brand-950 p-10 md:p-16 rounded-[3rem] md:rounded-[4rem] text-center shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-32 h-32 bg-brand-500 rounded-full blur-[80px] opacity-20 -ml-16 -mt-16"></div>
+          <h3 className="text-2xl md:text-5xl font-black text-white mb-6 md:mb-8 tracking-tight uppercase">Prêt à dominer votre WiFi Zone ?</h3>
+          <p className="text-slate-400 font-medium mb-8 md:mb-12 text-sm md:text-base">Rejoignez des centaines de gérants qui ont déjà automatisé leur business.</p>
+          <button 
+            onClick={() => navigate('/register-agency')}
+            className="w-full md:w-auto bg-brand-500 hover:bg-brand-600 text-white px-8 py-4 md:px-12 md:py-5 rounded-2xl font-black text-xs tracking-widest uppercase transition-all shadow-xl shadow-brand-500/20 active:scale-95"
+          >
+            DÉMARRER L'ESSAI GRATUIT
+          </button>
         </div>
       </section>
 
-      <footer className="bg-brand-950 py-20 border-t border-white/5 text-center">
-        <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.4em]">© 2025 Gestion_Hotspot - Solution Pro pour ISP & WiFi Zones</p>
+      {/* Footer */}
+      <footer className="bg-brand-950 py-12 md:py-16 px-6 text-center border-t border-white/5">
+        <div className="flex flex-col items-center justify-center mb-8">
+           <div className="flex items-center gap-3 mb-6 opacity-50">
+             <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center text-white font-black">G</div>
+             <span className="text-sm font-black text-white tracking-tighter">Gestion_Hotspot</span>
+           </div>
+           
+           <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/10 px-6 py-3 rounded-2xl transition-all group active:scale-95">
+              <MessageCircle className="w-4 h-4 text-[#25D366]" />
+              <span className="text-xs font-black text-slate-300 group-hover:text-white uppercase tracking-widest">Support WhatsApp</span>
+           </a>
+        </div>
+
+        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
+          © 2025 Gestion_Hotspot AI. TOUS DROITS RÉSERVÉS.
+        </p>
       </footer>
     </div>
   );
 };
 
-const FeatureCard = ({ icon, title, desc }: any) => (
-  <div className="bg-white/5 border border-white/5 p-12 rounded-[3.5rem] hover:bg-white/10 transition-all group">
-    <div className="w-16 h-16 bg-brand-500 rounded-2xl flex items-center justify-center text-white mb-8 group-hover:scale-110 transition-transform">
-      {React.cloneElement(icon, { className: "w-8 h-8" })}
+// FAQ Item Sub-component
+const FAQItem = ({ question, answer }: { question: string, answer: string }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div 
+      className={`bg-white/5 border border-white/5 rounded-[2rem] overflow-hidden transition-all duration-300 ${isOpen ? 'border-brand-500/30 bg-white/[0.07]' : 'hover:bg-white/[0.08]'}`}
+    >
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-6 py-5 md:px-8 md:py-7 flex items-center justify-between text-left gap-4"
+      >
+        <span className="text-base md:text-lg font-black text-white tracking-tight leading-tight">{question}</span>
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${isOpen ? 'bg-brand-500 text-white rotate-180' : 'bg-white/10 text-white/40'}`}>
+          {isOpen ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+        </div>
+      </button>
+      
+      <div 
+        className={`px-6 md:px-8 transition-all duration-300 ease-in-out ${isOpen ? 'max-h-96 pb-6 md:pb-8 opacity-100' : 'max-h-0 opacity-0'}`}
+      >
+        <p className="text-[#8E9EAF] font-medium leading-relaxed text-sm">
+          {answer}
+        </p>
+      </div>
     </div>
-    <h3 className="text-xl font-black text-white mb-4 uppercase tracking-tight">{title}</h3>
-    <p className="text-slate-400 font-medium leading-relaxed">{desc}</p>
+  );
+};
+
+// Feature Card Sub-component
+const LandingFeatureCard = ({ icon, title, description }: any) => (
+  <div className="bg-slate-50/50 p-8 md:p-12 rounded-[2.5rem] md:rounded-[3.5rem] border border-slate-100 hover:border-brand-500/20 hover:bg-white hover:shadow-2xl transition-all group text-left">
+    <div className="w-14 h-14 md:w-16 md:h-16 bg-white rounded-2xl flex items-center justify-center text-brand-500 shadow-sm mb-6 md:mb-8 group-hover:scale-110 group-hover:bg-brand-500 group-hover:text-white transition-all">
+      {icon}
+    </div>
+    <h3 className="text-lg md:text-xl font-black text-slate-900 mb-4 md:mb-6 tracking-tight uppercase">{title}</h3>
+    <p className="text-sm text-slate-400 font-medium leading-relaxed">
+      {description}
+    </p>
   </div>
 );
 

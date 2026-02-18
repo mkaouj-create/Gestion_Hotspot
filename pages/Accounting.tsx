@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Banknote, Search, Calendar, Filter, ArrowUpRight, ArrowDownLeft, Loader2, Download, Printer, TrendingUp, Wallet, CheckCircle2, Building2, User } from 'lucide-react';
+import { Banknote, Search, Calendar, Filter, ArrowUpRight, ArrowDownLeft, Loader2, Download, Printer, TrendingUp, Wallet, CheckCircle2, RefreshCcw, AlertCircle } from 'lucide-react';
 import { db } from '../services/db';
 import { UserRole, LedgerEntry } from '../types';
 
 const Accounting: React.FC = () => {
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState({ totalRevenue: 0, totalCollections: 0, balance: 0 });
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'VENTE' | 'VERSEMENT'>('ALL');
@@ -19,28 +20,34 @@ const Accounting: React.FC = () => {
     if (!currentUser) return;
     try {
       setLoading(true);
+      setError(null);
+      
       let query = db.from('accounting_ledger').select('*');
 
+      // Filtrage par rôle et agence
       if (currentUser.role === UserRole.REVENDEUR) {
         query = query.eq('user_id', currentUser.id);
-      } else {
+      } else if (currentUser.role !== UserRole.ADMIN_GLOBAL) {
+        if (!currentUser.tenant_id) throw new Error("ID d'agence manquant.");
         query = query.eq('tenant_id', currentUser.tenant_id);
       }
 
+      // Filtres UI
       if (searchTerm) query = query.ilike('party_name', `%${searchTerm}%`);
       if (typeFilter !== 'ALL') query = query.eq('entry_type', typeFilter);
       if (dateStart) query = query.gte('entry_date', `${dateStart}T00:00:00`);
       if (dateEnd) query = query.lte('entry_date', `${dateEnd}T23:59:59`);
 
-      const { data, error } = await query.order('entry_date', { ascending: false }).limit(500);
-      if (error) throw error;
+      const { data, error: dbError } = await query.order('entry_date', { ascending: false }).limit(1000);
+      
+      if (dbError) throw dbError;
 
-      const entries = data as LedgerEntry[];
+      const entries = (data || []) as LedgerEntry[];
       setLedger(entries);
 
-      // Calcul des statistiques
-      const revenue = entries.filter(e => e.type === 'VENTE').reduce((acc, curr) => acc + Number(curr.amount), 0);
-      const collections = entries.filter(e => e.type === 'VERSEMENT' && e.status === 'APPROVED').reduce((acc, curr) => acc + Number(curr.amount), 0);
+      // Fixed: Using entry_type instead of type to calculate statistics.
+      const revenue = entries.filter(e => e.entry_type === 'VENTE').reduce((acc, curr) => acc + Number(curr.amount), 0);
+      const collections = entries.filter(e => e.entry_type === 'VERSEMENT' && e.status === 'APPROVED').reduce((acc, curr) => acc + Number(curr.amount), 0);
       
       setStats({
         totalRevenue: revenue,
@@ -48,8 +55,9 @@ const Accounting: React.FC = () => {
         balance: collections - revenue
       });
 
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error("Accounting error:", err);
+      setError(err.message || "Erreur lors de la récupération des données comptables.");
     } finally {
       setLoading(false);
     }
@@ -89,19 +97,33 @@ const Accounting: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-3 relative z-10">
-          <button onClick={() => window.print()} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-slate-400 hover:text-slate-900 transition-all shadow-sm">
+          <button onClick={() => fetchLedger()} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-slate-400 hover:text-emerald-600 transition-all shadow-sm">
+            <RefreshCcw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button onClick={() => window.print()} className="hidden md:block p-4 bg-slate-50 border border-slate-100 rounded-2xl text-slate-400 hover:text-slate-900 transition-all shadow-sm">
             <Printer className="w-5 h-5" />
           </button>
           <button className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 shadow-xl hover:bg-black transition-all active:scale-95">
-            <Download className="w-4 h-4" /> EXPORTER CSV
+            <Download className="w-4 h-4" /> EXPORTER
           </button>
         </div>
       </header>
 
+      {error && (
+        <div className="bg-red-50 border border-red-100 p-6 rounded-[2rem] flex items-start gap-4 text-red-600 animate-in slide-in-from-top-4">
+          <AlertCircle className="w-6 h-6 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-black uppercase text-xs tracking-widest mb-1">Erreur de base de données</p>
+            <p className="text-sm font-medium">{error}</p>
+            <button onClick={() => fetchLedger()} className="mt-4 text-[10px] font-black uppercase tracking-widest underline">Réessayer la connexion</button>
+          </div>
+        </div>
+      )}
+
       {/* STATS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatTile 
-          label={isReseller ? "Total Achats Stock" : "Chiffre d'Affaires"} 
+          label={isReseller ? "Consommation Solde" : "Ventes (CA Brut)"} 
           value={stats.totalRevenue} 
           currency={currency} 
           icon={<TrendingUp />} 
@@ -109,7 +131,7 @@ const Accounting: React.FC = () => {
           bg="bg-indigo-50" 
         />
         <StatTile 
-          label={isReseller ? "Total Mes Versements" : "Total Recouvré"} 
+          label={isReseller ? "Total Mes Versements" : "Recouvrement Réel"} 
           value={stats.totalCollections} 
           currency={currency} 
           icon={<CheckCircle2 />} 
@@ -117,7 +139,7 @@ const Accounting: React.FC = () => {
           bg="bg-emerald-50" 
         />
         <StatTile 
-          label={isReseller ? "Mon Solde Net" : "Balance Agence"} 
+          label={isReseller ? "Mon Solde Net" : "Écart de Caisse"} 
           value={stats.balance} 
           currency={currency} 
           icon={<Wallet />} 
@@ -193,15 +215,15 @@ const Accounting: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-8 py-6 text-right">
-                    <p className={`text-lg font-black ${entry.type === 'VENTE' ? 'text-indigo-600' : 'text-emerald-600'}`}>
-                      {entry.type === 'VENTE' ? '-' : '+'}{Number(entry.amount).toLocaleString()}
+                    <p className={`text-lg font-black ${entry.entry_type === 'VENTE' ? 'text-indigo-600' : 'text-emerald-600'}`}>
+                      {entry.entry_type === 'VENTE' ? '-' : '+'}{Number(entry.amount).toLocaleString()}
                     </p>
                     <p className="text-[9px] font-bold text-slate-400 uppercase">{currency}</p>
                   </td>
                   <td className="px-8 py-6 text-center">
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${entry.type === 'VENTE' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
-                      {entry.type === 'VENTE' ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownLeft className="w-3 h-3" />}
-                      {entry.type}
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${entry.entry_type === 'VENTE' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
+                      {entry.entry_type === 'VENTE' ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownLeft className="w-3 h-3" />}
+                      {entry.entry_type}
                     </span>
                   </td>
                 </tr>

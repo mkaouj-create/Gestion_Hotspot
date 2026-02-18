@@ -2,12 +2,13 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, ShoppingCart, CloudUpload, Ticket, History, Users, LogOut, Wallet, Settings, Building2, Zap, ChevronLeft, MapPin, Tag, X, Banknote } from 'lucide-react';
-import { NavItem, UserRole } from '../types.ts';
-import { db } from '../services/db.ts';
+import { NavItem, UserRole } from '../types';
+import { db } from '../services/db';
 
 interface SidebarProps { isOpen: boolean; setIsOpen: (isOpen: boolean) => void; }
 
-const Sidebar: React.FC = ({ isOpen, setIsOpen }) => {
+// Fixed: Added SidebarProps to React.FC generic to resolve 'isOpen' and 'setIsOpen' property errors.
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const navigate = useNavigate();
   const [userInfo, setUserInfo] = useState<{ role: UserRole | null; fullName: string; agencyName: string; }>({ role: null, fullName: '', agencyName: '' });
 
