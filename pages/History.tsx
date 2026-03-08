@@ -122,7 +122,7 @@ const History: React.FC = () => {
       if (sellerFilter !== 'ALL') query = query.eq('seller_id', sellerFilter);
       if (profileFilter !== 'ALL') query = query.eq('tickets.profile_id', profileFilter);
 
-      const { data, error } = await query.order('sold_at', { ascending: false }).limit(500);
+      const { data, error } = await query.order('sold_at', { ascending: false }).limit(100);
       
       if (error) throw error;
       const results = (data as unknown as Sale[]) || [];
@@ -171,7 +171,7 @@ const History: React.FC = () => {
           if (dateEnd) query = query.lte('created_at', `${dateEnd}T23:59:59`);
           if (sellerFilter !== 'ALL') query = query.eq('reseller_id', sellerFilter);
 
-          const { data, error } = await query.order('created_at', { ascending: false }).limit(500);
+          const { data, error } = await query.order('created_at', { ascending: false }).limit(100);
 
           if (error) throw error;
           const results = data || [];
@@ -211,31 +211,31 @@ const History: React.FC = () => {
       {toast && (<div className={`fixed top-6 right-6 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right border ${toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-red-600 text-white border-red-500'}`}>{toast.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}<p className="font-bold text-sm tracking-tight">{toast.message}</p></div>)}
       
       {/* HEADER & STATS */}
-      <div className="bg-white p-6 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-slate-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-8 relative overflow-hidden">
+      <div className="bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-slate-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
           {currentUser?.role === UserRole.ADMIN_GLOBAL && (<div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 rounded-full blur-[80px] -mr-20 -mt-20"></div>)}
-          <div className="flex items-center gap-5 relative z-10">
-              <div className={`w-14 h-14 md:w-16 md:h-16 rounded-2xl flex items-center justify-center shadow-2xl ${historyType === 'SALES' ? 'bg-slate-900 text-white' : 'bg-emerald-600 text-white'}`}>
-                  {historyType === 'SALES' ? <HistoryIcon className="w-7 h-7 md:w-8 md:h-8" /> : <Wallet className="w-7 h-7 md:w-8 md:h-8" />}
+          <div className="flex items-center gap-4 relative z-10">
+              <div className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center shadow-2xl ${historyType === 'SALES' ? 'bg-slate-900 text-white' : 'bg-emerald-600 text-white'}`}>
+                  {historyType === 'SALES' ? <HistoryIcon className="w-6 h-6 md:w-8 md:h-8" /> : <Wallet className="w-6 h-6 md:w-8 md:h-8" />}
               </div>
               <div>
                   <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded-md ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'bg-brand-50 text-brand-600' : 'bg-slate-50 text-slate-400'}`}>
+                      <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded-md ${currentUser?.role === UserRole.ADMIN_GLOBAL ? 'bg-brand-50 text-brand-600' : 'bg-slate-50 text-slate-400'}`}>
                           {currentUser?.role === UserRole.ADMIN_GLOBAL ? 'Supervision SaaS' : (currentUser?.role === UserRole.REVENDEUR ? 'Mon Activité' : 'Journal Agence')}
                       </span>
                   </div>
                   <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight leading-none">
-                      {historyType === 'SALES' ? 'Journal des Ventes' : 'Flux de Trésorerie'}
+                      {historyType === 'SALES' ? 'Journal Ventes' : 'Flux Trésorerie'}
                   </h1>
               </div>
           </div>
-          <div className="flex items-center gap-4 relative z-10 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-              <div className="bg-slate-50 border border-slate-100 p-4 md:p-5 px-6 md:px-8 rounded-[2rem] flex-1 md:flex-none min-w-[140px]">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{historyType === 'SALES' ? 'TICKETS' : 'TRANSACTIONS'}</p>
-                  <p className="text-xl md:text-2xl font-black text-slate-900">{stats.totalCount}</p>
+          <div className="flex items-center gap-3 relative z-10 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 no-scrollbar">
+              <div className="bg-slate-50 border border-slate-100 p-4 md:p-5 px-5 md:px-8 rounded-2xl md:rounded-[2rem] flex-1 md:flex-none min-w-[130px]">
+                  <p className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{historyType === 'SALES' ? 'TICKETS' : 'TRANSACTIONS'}</p>
+                  <p className="text-lg md:text-2xl font-black text-slate-900">{stats.totalCount}</p>
               </div>
-              <div className={`p-4 md:p-5 px-6 md:px-8 rounded-[2rem] border flex-1 md:flex-none min-w-[180px] ${historyType === 'SALES' ? 'bg-slate-100 border-slate-200' : 'bg-emerald-50 border-emerald-100'}`}>
-                  <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${historyType === 'SALES' ? 'text-slate-600' : 'text-emerald-600'}`}>{historyType === 'SALES' ? 'TOTAL VENDU' : 'TOTAL ENCAISSÉ'}</p>
-                  <p className={`text-xl md:text-2xl font-black ${historyType === 'SALES' ? 'text-slate-700' : 'text-emerald-700'}`}>{stats.totalRevenue.toLocaleString()} <span className="text-[10px] ml-1">{currency}</span></p>
+              <div className={`p-4 md:p-5 px-5 md:px-8 rounded-2xl md:rounded-[2rem] border flex-1 md:flex-none min-w-[160px] ${historyType === 'SALES' ? 'bg-slate-100 border-slate-200' : 'bg-emerald-50 border-emerald-100'}`}>
+                  <p className={`text-[8px] md:text-[9px] font-black uppercase tracking-widest mb-1 ${historyType === 'SALES' ? 'text-slate-600' : 'text-emerald-600'}`}>{historyType === 'SALES' ? 'TOTAL VENDU' : 'TOTAL ENCAISSÉ'}</p>
+                  <p className={`text-lg md:text-2xl font-black ${historyType === 'SALES' ? 'text-slate-700' : 'text-emerald-700'}`}>{stats.totalRevenue.toLocaleString()} <span className="text-[10px] ml-1">{currency}</span></p>
               </div>
           </div>
       </div>
@@ -244,32 +244,32 @@ const History: React.FC = () => {
       <div className="flex flex-col gap-4">
           
           {/* Main Toggle */}
-          <div className="bg-white p-1.5 rounded-[2rem] border border-slate-100 shadow-sm flex w-full md:w-fit self-center md:self-start">
+          <div className="bg-white p-1.5 rounded-2xl md:rounded-[2rem] border border-slate-100 shadow-sm flex w-full md:w-fit self-center md:self-start">
               <button 
                   onClick={() => setHistoryType('SALES')} 
-                  className={`flex-1 md:flex-none px-8 py-3 rounded-[1.5rem] text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${historyType === 'SALES' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                  className={`flex-1 md:flex-none px-6 md:px-8 py-2.5 md:py-3 rounded-xl md:rounded-[1.5rem] text-[10px] md:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${historyType === 'SALES' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
               >
-                  <ArrowUpRight className="w-4 h-4" /> Ventes Tickets
+                  <ArrowUpRight className="w-3 h-3 md:w-4 md:h-4" /> Ventes
               </button>
               <button 
                   onClick={() => setHistoryType('PAYMENTS')} 
-                  className={`flex-1 md:flex-none px-8 py-3 rounded-[1.5rem] text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${historyType === 'PAYMENTS' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                  className={`flex-1 md:flex-none px-6 md:px-8 py-2.5 md:py-3 rounded-xl md:rounded-[1.5rem] text-[10px] md:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${historyType === 'PAYMENTS' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
               >
-                  <ArrowDownLeft className="w-4 h-4" /> Versements
+                  <ArrowDownLeft className="w-3 h-3 md:w-4 md:h-4" /> Versements
               </button>
           </div>
 
           {/* FILTER BAR */}
-          <div className="bg-white p-2 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col gap-2">
+          <div className="bg-white p-2 rounded-2xl md:rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col gap-2">
               <div className="flex flex-col md:flex-row gap-2">
                   <div className="relative group flex-1">
-                      <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-brand-600 transition-colors" />
+                      <Search className="absolute left-5 md:left-6 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-slate-300 group-focus-within:text-brand-600 transition-colors" />
                       <input 
                           type="text" 
                           placeholder={historyType === 'SALES' ? "Rechercher code ticket..." : "Rechercher réf. paiement..."} 
                           value={searchTerm} 
                           onChange={(e) => setSearchTerm(e.target.value)} 
-                          className="w-full pl-14 pr-6 py-4 rounded-[2rem] bg-white hover:bg-slate-50 focus:bg-white outline-none font-bold text-slate-600 transition-all text-sm" 
+                          className="w-full pl-12 md:pl-14 pr-6 py-3 md:py-4 rounded-xl md:rounded-[2rem] bg-white hover:bg-slate-50 focus:bg-white outline-none font-bold text-slate-600 transition-all text-sm" 
                       />
                   </div>
                   
@@ -340,7 +340,64 @@ const History: React.FC = () => {
                   <button onClick={resetFilters} className="text-xs text-brand-600 hover:underline">Réinitialiser les filtres</button>
               </div>
           ) : (
-              <div className="overflow-x-auto">
+              <>
+                {/* MOBILE CARD VIEW */}
+                <div className="md:hidden divide-y divide-slate-50">
+                    {historyType === 'SALES' ? (
+                        sales.map((sale) => (
+                            <div key={sale.id} onClick={() => setSelectedSale(sale)} className="p-5 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0 active:bg-slate-100">
+                                <div className="flex justify-between items-start mb-3">
+                                    <div>
+                                        <p className="font-black text-slate-900 text-lg tracking-tight">{sale.tickets?.username}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">{sale.tickets?.ticket_profiles?.name}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-black text-slate-900 text-sm">{Number(sale.amount_paid).toLocaleString()} {currency}</p>
+                                        <p className="text-[8px] font-bold text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded-md inline-block mt-1">Encaissé</p>
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <Calendar className="w-3 h-3 text-slate-300" />
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase">{new Date(sale.sold_at).toLocaleDateString('fr-FR')} • {new Date(sale.sold_at).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {currentUser?.role !== UserRole.REVENDEUR && (
+                                            <span className="text-[9px] font-bold text-indigo-400 uppercase bg-indigo-50 px-2 py-0.5 rounded-md">{sale.users?.full_name?.split(' ')[0]}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        payments.map((payment) => (
+                            <div key={payment.id} className="p-5 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">
+                                <div className="flex justify-between items-start mb-3">
+                                    <div>
+                                        <p className="font-black text-slate-900 text-sm tracking-tight">{payment.payment_method}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[150px]">{payment.phone_number || 'Aucune réf.'}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-black text-slate-900 text-sm">{Number(payment.amount).toLocaleString()} {currency}</p>
+                                        <span className={`inline-flex px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest mt-1 ${payment.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-600' : payment.status === 'REJECTED' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-500'}`}>
+                                            {payment.status === 'APPROVED' ? 'VALIDÉ' : payment.status === 'REJECTED' ? 'REJETÉ' : 'EN ATTENTE'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <Calendar className="w-3 h-3 text-slate-300" />
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase">{new Date(payment.created_at).toLocaleDateString('fr-FR')}</p>
+                                    </div>
+                                    <p className="text-[9px] font-bold text-slate-500 uppercase">{payment.users?.full_name}</p>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {/* DESKTOP TABLE VIEW */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left min-w-[900px]">
                       <thead>
                           <tr className="border-b border-slate-50 bg-slate-50/30 text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -443,6 +500,7 @@ const History: React.FC = () => {
                       </tbody>
                   </table>
               </div>
+              </>
           )}
       </div>
 

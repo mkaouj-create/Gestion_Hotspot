@@ -33,6 +33,8 @@ const GlobalLoader = () => (
   </div>
 );
 
+import BottomNav from './components/BottomNav';
+
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
@@ -46,9 +48,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-black">G</div>
                 <span className="font-black text-sm tracking-tight">Gestion_Hotspot</span>
             </div>
-            <button onClick={() => setSidebarOpen(true)} className="p-2 bg-slate-50 rounded-xl text-slate-600 hover:bg-slate-100 active:scale-95 transition-all">
-                <Menu className="w-6 h-6" />
-            </button>
+            {/* Menu button moved to BottomNav */}
           </header>
 
           <main className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-10 custom-scrollbar relative z-10 w-full">
@@ -58,6 +58,8 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </Suspense>
             </div>
           </main>
+
+          <BottomNav setSidebarOpen={setSidebarOpen} />
         </div>
     </div>
   );

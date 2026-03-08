@@ -367,15 +367,15 @@ const Resellers: React.FC = () => {
     <div className="space-y-8 font-sans pb-40 relative animate-in fade-in duration-500">
       {toast && (<div className={`fixed top-6 right-6 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right border ${toast.type === 'success' ? 'bg-emerald-600 border-emerald-500' : 'bg-red-600 border-red-500'} text-white`}>{toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}<p className="font-bold text-sm tracking-tight">{toast.message}</p></div>)}
       
-      <header className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden">
+      <header className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 bg-white p-6 md:p-8 rounded-[2.5rem] md:rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full blur-[100px] opacity-10 -mr-20 -mt-20"></div>
         <div className="relative z-10">
             <div className="flex items-center gap-2 text-indigo-600 mb-2">
                 <Wallet className="w-5 h-5" />
                 <span className="text-[10px] font-black uppercase tracking-widest">Finance & Distribution</span>
             </div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Gestion Revendeurs</h1>
-            <p className="text-slate-400 font-medium mt-1">Gérez les soldes, le stock et suivez les performances.</p>
+            <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Gestion Revendeurs</h1>
+            <p className="text-slate-400 font-medium mt-1 text-sm md:text-base">Gérez les soldes, le stock et suivez les performances.</p>
         </div>
         
         <div className="relative z-10 flex flex-col md:flex-row gap-4 w-full xl:w-auto">
@@ -401,7 +401,7 @@ const Resellers: React.FC = () => {
 
       {/* PENDING APPROVALS SECTION */}
       {pendingRequests.length > 0 && (
-          <div className="bg-orange-50 border border-orange-100 rounded-[2.5rem] p-8 animate-in slide-in-from-top-4">
+          <div className="bg-orange-50 border border-orange-100 rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 animate-in slide-in-from-top-4">
               <div className="flex items-center gap-3 mb-6">
                   <div className="bg-white p-2 rounded-xl text-orange-500 shadow-sm"><Bell className="w-5 h-5" /></div>
                   <h3 className="font-black text-slate-900 text-lg">Demandes de rechargement ({pendingRequests.length})</h3>

@@ -183,36 +183,39 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* HEADER */}
-      <section className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-8 md:p-12 rounded-[2.5rem] md:rounded-[4rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+      <section className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[4rem] border border-slate-100 shadow-sm relative overflow-hidden group">
         <div className="absolute top-0 right-0 w-80 h-80 bg-brand-500 rounded-full blur-[120px] opacity-[0.03] -mr-20 -mt-20"></div>
         <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-6">
-          <div className="w-20 h-20 bg-slate-900 rounded-[2rem] flex items-center justify-center text-white shadow-2xl">
-            {isReseller ? <Wallet className="w-10 h-10" /> : <Building2 className="w-10 h-10" />}
+          <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-900 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center text-white shadow-2xl shrink-0">
+            {isReseller ? <Wallet className="w-8 h-8 md:w-10 md:h-10" /> : <Building2 className="w-8 h-8 md:w-10 md:h-10" />}
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">{agencyName}</span>
               {isReseller && <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest">Compte Revendeur</span>}
             </div>
-            <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter leading-none">Hello, {currentUser?.full_name?.split(' ')[0]}</h1>
+            <h1 className="text-2xl md:text-5xl font-black text-slate-900 tracking-tighter leading-none">Hello, {currentUser?.full_name?.split(' ')[0]}</h1>
           </div>
         </div>
         
         <div className="flex items-center gap-3 relative z-10">
           {!isReseller && !currentUser?.role.includes('ADMIN_GLOBAL') && (
-            <div className="bg-emerald-50 px-6 py-4 rounded-3xl border border-emerald-100 hidden md:block">
+            <div className="bg-emerald-50 px-4 py-3 md:px-6 md:py-4 rounded-2xl md:rounded-3xl border border-emerald-100 hidden md:block">
                 <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Bénéfice Estimé</p>
-                <p className="text-xl font-black text-emerald-900">+{stats.margin.toLocaleString()} <span className="text-[10px]">{currency}</span></p>
+                <p className="text-lg md:text-xl font-black text-emerald-900">+{stats.margin.toLocaleString()} <span className="text-[10px]">{currency}</span></p>
             </div>
           )}
-          <button onClick={() => navigate('/sales')} className="bg-brand-600 hover:bg-brand-700 text-white px-8 py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl transition-all active:scale-95 group">
-            <ShoppingCart className="w-5 h-5 group-hover:-translate-y-1 transition-transform" /> VENDRE TICKETS
+          <button onClick={fetchDashboardData} className="p-4 bg-slate-50 text-slate-600 rounded-[1.5rem] hover:bg-slate-100 active:scale-95 transition-all" title="Actualiser">
+            <RefreshCcw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button onClick={() => navigate('/sales')} className="bg-brand-600 hover:bg-brand-700 text-white px-6 py-4 md:px-8 md:py-5 rounded-[1.5rem] md:rounded-[2rem] font-black text-[10px] md:text-xs uppercase tracking-widest flex items-center justify-center gap-2 md:gap-3 shadow-xl transition-all active:scale-95 group">
+            <ShoppingCart className="w-4 h-4 md:w-5 md:h-5 group-hover:-translate-y-1 transition-transform" /> <span className="hidden sm:inline">VENDRE TICKETS</span><span className="sm:hidden">VENDRE</span>
           </button>
         </div>
       </section>
 
       {/* KPI GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
         <KpiCard 
           label={isReseller ? "Recettes de Vente" : "Chiffre d'Affaires"}
           value={stats.revenue.toLocaleString()}
@@ -222,22 +225,22 @@ const Dashboard: React.FC = () => {
           bg="bg-indigo-50"
         />
 
-        <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col justify-between group hover:shadow-xl transition-all">
-          <div className="flex justify-between items-start mb-6">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${stats.balance < 10000 ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-600'}`}>
-              <Wallet className="w-7 h-7" />
+        <div className="bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-slate-100 shadow-sm flex flex-col justify-between group hover:shadow-xl transition-all col-span-2 sm:col-span-1">
+          <div className="flex justify-between items-start mb-4 md:mb-6">
+            <div className={`w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center shadow-inner ${stats.balance < 10000 ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-600'}`}>
+              <Wallet className="w-5 h-5 md:w-7 md:h-7" />
             </div>
             {isReseller && (
-              <button onClick={() => setShowDepositModal(true)} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg">
-                VERSER CASH
+              <button onClick={() => setShowDepositModal(true)} className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-900 text-white rounded-lg md:rounded-xl text-[8px] md:text-[9px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg">
+                VERSER
               </button>
             )}
           </div>
           <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{isReseller ? "Mon Crédit Disponible" : "Solde Trésorerie"}</p>
-            <div className="flex items-baseline gap-1.5">
-              <h3 className={`text-3xl font-black ${stats.balance < 0 ? 'text-red-600' : 'text-slate-900'}`}>{stats.balance.toLocaleString()}</h3>
-              <span className="text-[10px] font-bold text-slate-400 uppercase">{currency}</span>
+            <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{isReseller ? "Mon Crédit" : "Trésorerie"}</p>
+            <div className="flex items-baseline gap-1 md:gap-1.5">
+              <h3 className={`text-2xl md:text-3xl font-black ${stats.balance < 0 ? 'text-red-600' : 'text-slate-900'}`}>{stats.balance.toLocaleString()}</h3>
+              <span className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase">{currency}</span>
             </div>
           </div>
         </div>
@@ -264,29 +267,29 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* FOOTER DASHBOARD */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden min-h-[400px]">
-          <div className="px-10 py-8 border-b border-slate-50 flex items-center justify-between">
-            <h3 className="font-black text-slate-900 text-lg uppercase tracking-tight">Journal d'Activité</h3>
-            <button onClick={() => navigate('/history')} className="text-[10px] font-black text-brand-600 uppercase tracking-widest">Voir complet</button>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+        <div className="lg:col-span-2 bg-white rounded-[2rem] md:rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden min-h-[300px] md:min-h-[400px]">
+          <div className="px-5 py-4 md:px-10 md:py-8 border-b border-slate-50 flex items-center justify-between">
+            <h3 className="font-black text-slate-900 text-sm md:text-lg uppercase tracking-tight">Journal d'Activité</h3>
+            <button onClick={() => navigate('/history')} className="text-[9px] md:text-[10px] font-black text-brand-600 uppercase tracking-widest">Voir complet</button>
           </div>
           <div className="divide-y divide-slate-50">
             {recentActivities.map((activity, i) => (
-              <div key={i} className="px-10 py-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                <div className="flex items-center gap-5">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${activity.entry_type === 'VENTE' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                    {activity.entry_type === 'VENTE' ? <ShoppingCart className="w-5 h-5" /> : <Banknote className="w-5 h-5" />}
+              <div key={i} className="px-5 py-4 md:px-10 md:py-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                <div className="flex items-center gap-3 md:gap-5">
+                  <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center ${activity.entry_type === 'VENTE' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                    {activity.entry_type === 'VENTE' ? <ShoppingCart className="w-4 h-4 md:w-5 md:h-5" /> : <Banknote className="w-4 h-4 md:w-5 md:h-5" />}
                   </div>
                   <div>
-                    <p className="font-black text-slate-900 text-sm">{activity.description}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">{new Date(activity.entry_date).toLocaleDateString()} • {activity.party_name}</p>
+                    <p className="font-black text-slate-900 text-xs md:text-sm line-clamp-1">{activity.description}</p>
+                    <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase">{new Date(activity.entry_date).toLocaleDateString()} • {activity.party_name}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className={`font-black text-lg ${activity.entry_type === 'VENTE' ? 'text-slate-900' : 'text-emerald-600'}`}>
+                <div className="text-right shrink-0">
+                  <p className={`font-black text-sm md:text-lg ${activity.entry_type === 'VENTE' ? 'text-slate-900' : 'text-emerald-600'}`}>
                     {activity.entry_type === 'VENTE' ? '-' : '+'}{Number(activity.amount).toLocaleString()}
                   </p>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase">{currency}</p>
+                  <p className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase">{currency}</p>
                 </div>
               </div>
             ))}
@@ -349,16 +352,16 @@ const Dashboard: React.FC = () => {
 const KpiCard = ({ label, value, unit, icon, color, bg, onClick }: any) => (
   <div 
     onClick={onClick} 
-    className={`bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 group ${onClick ? 'cursor-pointer' : ''}`}
+    className={`bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 group ${onClick ? 'cursor-pointer' : ''}`}
   >
-    <div className={`w-14 h-14 ${bg} ${color} rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform mb-6`}>
-      {React.cloneElement(icon, { className: "w-7 h-7" })}
+    <div className={`w-10 h-10 md:w-14 md:h-14 ${bg} ${color} rounded-xl md:rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform mb-4 md:mb-6`}>
+      {React.cloneElement(icon, { className: "w-5 h-5 md:w-7 md:h-7" })}
     </div>
     <div>
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate">{label}</p>
-      <div className="flex items-baseline gap-1.5 flex-wrap">
-        <h3 className={`text-3xl font-black text-slate-900 tracking-tighter`}>{value}</h3>
-        <span className="text-[10px] font-bold text-slate-400 uppercase">{unit}</span>
+      <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate">{label}</p>
+      <div className="flex items-baseline gap-1 md:gap-1.5 flex-wrap">
+        <h3 className={`text-2xl md:text-3xl font-black text-slate-900 tracking-tighter`}>{value}</h3>
+        <span className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase">{unit}</span>
       </div>
     </div>
   </div>

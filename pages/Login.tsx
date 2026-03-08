@@ -54,7 +54,7 @@ const Login: React.FC = () => {
         </div>
 
         {/* Right Side - Form */}
-        <div className="w-full lg:w-7/12 p-8 md:p-16 flex flex-col justify-center">
+        <div className="w-full lg:w-7/12 p-6 md:p-12 flex flex-col justify-center">
           <div className="max-w-sm mx-auto w-full">
             <button onClick={() => navigate('/')} className="flex items-center gap-2 text-slate-400 hover:text-slate-600 font-medium text-xs mb-8 transition-colors">
               <ChevronLeft className="w-4 h-4" /> Retour

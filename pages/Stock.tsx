@@ -94,7 +94,7 @@ const Stock: React.FC = () => {
 
       if (search) query = query.ilike('username', `%${search}%`);
       
-      const { data, error: tError } = await query.limit(300);
+      const { data, error: tError } = await query.limit(100);
       if (tError) throw tError;
       setTickets(data || []);
     } catch (err: any) { showToast('error', err.message); } finally { setLoading(false); }
@@ -146,25 +146,25 @@ const Stock: React.FC = () => {
     <div className="space-y-6 md:space-y-8 font-sans pb-24 animate-in fade-in duration-500 relative">
       {toast && (<div className={`fixed top-6 right-6 z-[60] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right-10 border ${toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-red-600 text-white border-red-500'}`}>{toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}<p className="font-bold text-sm">{toast.message}</p></div>)}
       
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 md:gap-6">
           <div>
-              <span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-1 block">{currentUser?.role === UserRole.ADMIN_GLOBAL ? 'SUPERVISION GLOBALE DES STOCKS' : (isReseller ? 'MON STOCK PERSONNEL' : 'INVENTAIRE AGENCE')}</span>
-              <h1 className="text-3xl md:text-4xl font-black text-[#1e293b] tracking-tight">Gestion Stock</h1>
+              <span className="text-[9px] md:text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-1 block">{currentUser?.role === UserRole.ADMIN_GLOBAL ? 'SUPERVISION GLOBALE DES STOCKS' : (isReseller ? 'MON STOCK PERSONNEL' : 'INVENTAIRE AGENCE')}</span>
+              <h1 className="text-2xl md:text-4xl font-black text-[#1e293b] tracking-tight">Gestion Stock</h1>
           </div>
           {currentUser?.role === UserRole.GESTIONNAIRE_WIFI_ZONE && (
-              <button onClick={() => navigate('/import')} className="bg-slate-900 text-white px-6 py-4 rounded-2xl font-black text-xs tracking-widest uppercase shadow-xl flex items-center justify-center gap-3 hover:bg-black transition-all active:scale-95 w-full lg:w-auto">
+              <button onClick={() => navigate('/import')} className="bg-slate-900 text-white px-5 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs tracking-widest uppercase shadow-xl flex items-center justify-center gap-2 md:gap-3 hover:bg-black transition-all active:scale-95 w-full lg:w-auto">
                   <CloudUpload className="w-4 h-4" /> IMPORTER CSV
               </button>
           )}
       </div>
 
       <div className="bg-white rounded-[2rem] md:rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
-          <div className="p-6 md:p-8 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-5 md:p-8 space-y-4 md:space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                   {/* RECHERCHE */}
                   <div className="relative group lg:col-span-2">
-                      <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
-                      <input type="text" placeholder="Rechercher par code..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-14 pr-8 py-4 rounded-2xl border border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-indigo-50 outline-none font-bold text-slate-600 transition-all text-sm md:text-base" />
+                      <Search className="absolute left-5 md:left-6 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-slate-300 group-focus-within:text-indigo-500 transition-colors" />
+                      <input type="text" placeholder="Rechercher par code..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-12 md:pl-14 pr-6 md:pr-8 py-3 md:py-4 rounded-xl md:rounded-2xl border border-slate-100 bg-slate-50/30 focus:bg-white focus:ring-4 focus:ring-indigo-50 outline-none font-bold text-slate-600 transition-all text-sm md:text-base" />
                   </div>
 
                   {/* FILTRE AGENCE (GLOBAL ADMIN SEULEMENT) */}
@@ -191,19 +191,78 @@ const Stock: React.FC = () => {
               
               <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                   {(['TOUS', 'NEUF', 'ASSIGNÉ', 'VENDU'] as const).map((f) => (
-                      <button key={f} onClick={() => setFilter(f)} className={`px-5 py-2.5 rounded-xl font-black text-[10px] tracking-widest uppercase transition-all whitespace-nowrap ${filter === f ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white border border-slate-100 text-slate-400 hover:text-slate-600'}`}>
+                      <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 md:px-5 md:py-2.5 rounded-lg md:rounded-xl font-black text-[9px] md:text-[10px] tracking-widest uppercase transition-all whitespace-nowrap ${filter === f ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white border border-slate-100 text-slate-400 hover:text-slate-600'}`}>
                           {f === 'NEUF' ? 'STOCK DISPO (AGENCE)' : f === 'ASSIGNÉ' ? 'CHEZ REVENDEURS' : f}
                       </button>
                   ))}
                   {(resellerFilter !== 'ALL' || search || agencyFilter !== 'ALL') && (
-                      <button onClick={() => { setResellerFilter('ALL'); setSearch(''); setAgencyFilter('ALL'); setFilter('TOUS'); }} className="px-5 py-2.5 rounded-xl font-black text-[10px] tracking-widest uppercase bg-red-50 text-red-500 hover:bg-red-100 transition-all flex items-center gap-2">
+                      <button onClick={() => { setResellerFilter('ALL'); setSearch(''); setAgencyFilter('ALL'); setFilter('TOUS'); }} className="px-4 py-2 md:px-5 md:py-2.5 rounded-lg md:rounded-xl font-black text-[9px] md:text-[10px] tracking-widest uppercase bg-red-50 text-red-500 hover:bg-red-100 transition-all flex items-center gap-2">
                           <X className="w-3 h-3" /> RÉINITIALISER
                       </button>
                   )}
               </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* MOBILE CARD VIEW */}
+          <div className="md:hidden divide-y divide-slate-50">
+            {loading ? (
+                <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-200" /></div>
+            ) : tickets.length === 0 ? (
+                <div className="py-20 text-center text-slate-300 font-bold uppercase text-xs">Aucun ticket trouvé</div>
+            ) : tickets.map((item) => {
+                let statusLabel = 'VENDU';
+                let statusColor = 'bg-emerald-50 text-emerald-500';
+                let subText = '';
+
+                if (item.status === TicketStatus.NEUF) { 
+                    statusLabel = 'EN STOCK'; 
+                    statusColor = 'bg-indigo-50 text-indigo-500'; 
+                }
+                else if (item.status === TicketStatus.ASSIGNE) { 
+                    if (isReseller) { 
+                        statusLabel = 'EN STOCK'; 
+                        statusColor = 'bg-indigo-50 text-indigo-500'; 
+                    } else { 
+                        statusLabel = 'CHEZ REVENDEUR'; 
+                        statusColor = 'bg-purple-50 text-purple-600';
+                        subText = item.users?.full_name || 'Inconnu';
+                    } 
+                }
+                
+                return (
+                    <div key={item.id} className="p-5 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">
+                        <div className="flex justify-between items-start mb-3">
+                            <div>
+                                <p className="font-black text-slate-900 text-lg tracking-tight">{item.username}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">{item.ticket_profiles?.name}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="font-black text-slate-900 text-sm">{Number(item.ticket_profiles?.price).toLocaleString()} {currency}</p>
+                                <span className={`inline-block px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest mt-1 ${statusColor}`}>{statusLabel}</span>
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <p className="text-[9px] font-bold text-slate-300 uppercase">{new Date(item.imported_at).toLocaleDateString()}</p>
+                                {subText && <span className="text-[9px] font-bold text-purple-400 uppercase">• {subText}</span>}
+                            </div>
+                            {currentUser?.role !== UserRole.REVENDEUR && currentUser?.role !== UserRole.ADMIN_GLOBAL && (
+                                <div className="flex gap-2">
+                                    {item.status === TicketStatus.ASSIGNE ? (
+                                        <button onClick={() => handleVerifyUnassign(item)} className="p-2 rounded-lg text-orange-400 bg-orange-50"><UserX className="w-4 h-4" /></button>
+                                    ) : (
+                                        <button onClick={() => handleVerifyDelete(item)} disabled={item.status === TicketStatus.VENDU} className={`p-2 rounded-lg ${(item.status === TicketStatus.VENDU) ? 'text-slate-100' : 'text-red-400 bg-red-50'}`}><Trash2 className="w-4 h-4" /></button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            })}
+          </div>
+
+          {/* DESKTOP TABLE VIEW */}
+          <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[800px]">
                   <thead>
                       <tr className="border-y border-slate-50 bg-slate-50/30 text-[10px] font-black text-slate-400 uppercase tracking-widest">
