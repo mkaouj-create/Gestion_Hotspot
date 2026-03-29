@@ -12,6 +12,8 @@ export default function Guichets() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPin, setNewPin] = useState('');
+  const [selectedTenant, setSelectedTenant] = useState('');
+  const [tenants, setTenants] = useState<any[]>([]);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -31,20 +33,41 @@ export default function Guichets() {
     if (currentUser && currentUser.tenant_id) {
       fetchCodes();
       fetchDailyStats();
+      if (currentUser.role === UserRole.ADMIN_GLOBAL) {
+        fetchTenants();
+      }
     }
   }, [currentUser]);
+
+  const fetchTenants = async () => {
+    try {
+      const { data, error } = await db.from('tenants').select('id, name').order('name');
+      if (error) throw error;
+      setTenants(data || []);
+      if (data && data.length > 0) {
+        setSelectedTenant(data[0].id);
+      }
+    } catch (err) {
+      console.error('Error fetching tenants:', err);
+    }
+  };
 
   const fetchDailyStats = async () => {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const { data, error } = await db
+      let query = db
         .from('sales_history')
         .select('amount_paid')
-        .eq('tenant_id', currentUser.tenant_id)
         .gte('created_at', today.toISOString())
         .contains('metadata', { source: 'guichet' });
+
+      if (currentUser.role !== UserRole.ADMIN_GLOBAL) {
+        query = query.eq('tenant_id', currentUser.tenant_id);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -60,11 +83,16 @@ export default function Guichets() {
   const fetchCodes = async () => {
     try {
       setLoading(true);
-      const { data, error } = await db
+      let query = db
         .from('sales_access_codes')
-        .select('id, name, created_at')
-        .eq('tenant_id', currentUser.tenant_id)
+        .select('id, name, created_at, tenant_id, tenants(name)')
         .order('created_at', { ascending: false });
+
+      if (currentUser.role !== UserRole.ADMIN_GLOBAL) {
+        query = query.eq('tenant_id', currentUser.tenant_id);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setCodes(data || []);
@@ -82,12 +110,19 @@ export default function Guichets() {
       return;
     }
 
+    const tenantIdToUse = currentUser.role === UserRole.ADMIN_GLOBAL ? selectedTenant : currentUser.tenant_id;
+
+    if (!tenantIdToUse) {
+      setError("Veuillez sélectionner une agence.");
+      return;
+    }
+
     setProcessing(true);
     setError('');
 
     try {
       const { error: rpcError } = await db.rpc('create_guichet_code', {
-        p_tenant_id: currentUser.tenant_id,
+        p_tenant_id: tenantIdToUse,
         p_name: newName.trim(),
         p_pin: newPin
       });
@@ -119,8 +154,8 @@ export default function Guichets() {
     }
   };
 
-  const copyLink = (id: string) => {
-    const url = `${window.location.origin}/guichet?tenant_id=${currentUser.tenant_id}`;
+  const copyLink = (id: string, tenantId: string) => {
+    const url = `${window.location.origin}/guichet?tenant_id=${tenantId}`;
     navigator.clipboard.writeText(url);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -193,7 +228,14 @@ export default function Guichets() {
             
             <div className="relative z-10 flex-1">
               <div className="flex justify-between items-start mb-4">
-                <h3 className="text-xl font-black text-slate-900 tracking-tight">{code.name}</h3>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 tracking-tight">{code.name}</h3>
+                  {currentUser?.role === UserRole.ADMIN_GLOBAL && code.tenants && (
+                    <p className="text-xs font-bold text-brand-600 uppercase tracking-widest mt-1">
+                      {code.tenants.name}
+                    </p>
+                  )}
+                </div>
                 <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center">
                   <Key className="w-5 h-5 text-slate-400" />
                 </div>
@@ -205,7 +247,7 @@ export default function Guichets() {
 
             <div className="relative z-10 flex items-center gap-2 mt-4 pt-4 border-t border-slate-100">
               <button
-                onClick={() => copyLink(code.id)}
+                onClick={() => copyLink(code.id, code.tenant_id)}
                 className="flex-1 h-10 bg-slate-50 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"
               >
                 {copiedId === code.id ? (
@@ -248,6 +290,25 @@ export default function Guichets() {
             )}
 
             <form onSubmit={handleAddCode} className="space-y-6">
+              {currentUser?.role === UserRole.ADMIN_GLOBAL && (
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
+                    Agence (Tenant)
+                  </label>
+                  <select
+                    value={selectedTenant}
+                    onChange={(e) => setSelectedTenant(e.target.value)}
+                    className="w-full px-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-bold text-slate-900 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all"
+                    required
+                  >
+                    <option value="" disabled>Sélectionner une agence</option>
+                    {tenants.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
                   Nom du Guichet

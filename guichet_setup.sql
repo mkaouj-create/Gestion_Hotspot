@@ -102,8 +102,11 @@ CREATE POLICY "Admins can manage access codes" ON public.sales_access_codes
         EXISTS (
             SELECT 1 FROM public.users 
             WHERE users.id = auth.uid() 
-            AND users.tenant_id = sales_access_codes.tenant_id
-            AND users.role IN ('ADMIN_GLOBAL', 'GESTIONNAIRE_WIFI_ZONE')
+            AND (
+                users.role = 'ADMIN_GLOBAL' 
+                OR 
+                (users.role = 'GESTIONNAIRE_WIFI_ZONE' AND users.tenant_id = sales_access_codes.tenant_id)
+            )
         )
     );
 
