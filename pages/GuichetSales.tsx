@@ -45,7 +45,7 @@ export default function GuichetSales() {
         .from('sales_history')
         .select('amount_paid')
         .eq('tenant_id', tenantId)
-        .gte('created_at', today.toISOString())
+        .gte('sold_at', today.toISOString())
         .contains('metadata', { source: 'guichet' });
 
       if (error) throw error;

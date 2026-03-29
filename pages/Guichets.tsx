@@ -60,7 +60,7 @@ export default function Guichets() {
       let query = db
         .from('sales_history')
         .select('amount_paid')
-        .gte('created_at', today.toISOString())
+        .gte('sold_at', today.toISOString())
         .contains('metadata', { source: 'guichet' });
 
       if (currentUser.role !== UserRole.ADMIN_GLOBAL) {

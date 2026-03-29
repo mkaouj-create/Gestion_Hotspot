@@ -133,6 +133,11 @@ CREATE POLICY "Guichet can insert sales history" ON public.sales_history
         tenant_id = public.get_guichet_tenant_id()
     );
 
+CREATE POLICY "Guichet can view sales history" ON public.sales_history
+    FOR SELECT USING (
+        tenant_id = public.get_guichet_tenant_id()
+    );
+
 -- Note: Assurez-vous que la table sales_history permet l'insertion sans seller_id 
 -- si le guichet est anonyme, ou modifiez la table pour accepter un seller_id null.
 ALTER TABLE public.sales_history ALTER COLUMN seller_id DROP NOT NULL;
