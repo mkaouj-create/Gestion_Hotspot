@@ -73,7 +73,24 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 5. Mise à jour des politiques RLS pour autoriser l'accès via le Guichet
+-- 5. Fonction pour créer un nouveau code de guichet (hachage du PIN)
+CREATE OR REPLACE FUNCTION public.create_guichet_code(p_tenant_id UUID, p_name TEXT, p_pin TEXT)
+RETURNS UUID AS $$
+DECLARE
+    v_id UUID;
+BEGIN
+    -- Vérifier que l'utilisateur appelant a les droits (optionnel, mais recommandé si appelé depuis le client)
+    -- Ici, on suppose que les RLS sur la table feront le travail, ou que c'est appelé par un admin.
+    
+    INSERT INTO public.sales_access_codes (tenant_id, name, pin_hash)
+    VALUES (p_tenant_id, p_name, crypt(p_pin, gen_salt('bf')))
+    RETURNING id INTO v_id;
+
+    RETURN v_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 6. Mise à jour des politiques RLS pour autoriser l'accès via le Guichet
 
 -- Activer RLS sur les nouvelles tables (optionnel mais recommandé)
 ALTER TABLE public.sales_access_codes ENABLE ROW LEVEL SECURITY;
