@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ShoppingCart, CloudUpload, Ticket, History, Users, LogOut, Wallet, Settings, Building2, Zap, ChevronLeft, MapPin, Tag, X, Banknote, BookOpen } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, CloudUpload, Ticket, History, Users, LogOut, Wallet, Settings, Building2, Zap, ChevronLeft, MapPin, Tag, X, Banknote, BookOpen, Store } from 'lucide-react';
 import { NavItem, UserRole } from '../types';
 import { db } from '../services/db';
 
@@ -36,6 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     { label: 'Historique', path: '/history', icon: History },
     { label: 'Zones WiFi', path: '/zones', icon: MapPin },
     { label: 'Forfaits', path: '/profiles', icon: Tag },
+    { label: 'Guichets (Kiosques)', path: '/guichets', icon: Store },
     { label: 'Revendeurs', path: '/resellers', icon: Wallet },
     { label: 'Tutoriels', path: '/tutorials', icon: BookOpen },
     { label: 'Utilisateurs', path: '/users', icon: Users },
@@ -45,7 +46,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   ];
 
   const filteredItems = navItems.filter(item => {
-    if (userInfo.role === UserRole.ADMIN_GLOBAL) return !['/sales', '/profiles', '/import', '/zones', '/accounting'].includes(item.path);
+    if (userInfo.role === UserRole.ADMIN_GLOBAL) return !['/sales', '/profiles', '/import', '/zones', '/accounting', '/guichets'].includes(item.path);
     if (userInfo.role === UserRole.GESTIONNAIRE_WIFI_ZONE || userInfo.role === UserRole.ADMIN) return !['/agencies', '/subscriptions'].includes(item.path);
     if (userInfo.role === UserRole.REVENDEUR) return ['/dashboard', '/sales', '/accounting', '/history', '/stock', '/tutorials'].includes(item.path);
     return ['/dashboard', '/sales', '/stock', '/history', '/tutorials'].includes(item.path);

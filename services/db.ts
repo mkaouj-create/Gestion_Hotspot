@@ -66,4 +66,17 @@ export const db = createClient(supabaseUrl, supabaseKey, {
   }
 }) as any;
 
+export const createGuichetClient = (token: string) => {
+  return createClient(supabaseUrl, supabaseKey, {
+    global: {
+      headers: {
+        'x-guichet-token': token
+      }
+    },
+    auth: {
+      persistSession: false
+    }
+  }) as any;
+};
+
 export { supabaseUrl, supabaseKey };

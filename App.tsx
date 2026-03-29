@@ -16,6 +16,7 @@ const History = lazy(() => import('./pages/History'));
 const Agencies = lazy(() => import('./pages/Agencies'));
 const Users = lazy(() => import('./pages/Users'));
 const Resellers = lazy(() => import('./pages/Resellers'));
+const Guichets = lazy(() => import('./pages/Guichets'));
 const Settings = lazy(() => import('./pages/Settings'));
 const CompleteSetup = lazy(() => import('./pages/CompleteSetup'));
 const RegisterAgency = lazy(() => import('./pages/RegisterAgency'));
@@ -25,6 +26,9 @@ const Profiles = lazy(() => import('./pages/Profiles'));
 const PendingApproval = lazy(() => import('./pages/PendingApproval'));
 const Maintenance = lazy(() => import('./pages/Maintenance'));
 const Tutorials = lazy(() => import('./pages/Tutorials'));
+
+const GuichetLogin = lazy(() => import('./pages/GuichetLogin'));
+const GuichetSales = lazy(() => import('./pages/GuichetSales'));
 
 const GlobalLoader = () => (
   <div className="h-screen w-full flex flex-col items-center justify-center bg-[#f8fafc]">
@@ -115,11 +119,14 @@ const App: React.FC = () => {
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={!session ? <Landing /> : <Navigate to="/dashboard" replace />} />
-        <Route path="/login" element={!session ? <Login /> : <Navigate to="/dashboard" replace />} />
-        <Route path="/register-agency" element={!session ? <RegisterAgency /> : <Navigate to="/dashboard" replace />} />
-        {session ? (
+      <Suspense fallback={<GlobalLoader />}>
+        <Routes>
+          <Route path="/guichet" element={<GuichetLogin />} />
+          <Route path="/guichet/sales" element={<GuichetSales />} />
+          <Route path="/" element={!session ? <Landing /> : <Navigate to="/dashboard" replace />} />
+          <Route path="/login" element={!session ? <Login /> : <Navigate to="/dashboard" replace />} />
+          <Route path="/register-agency" element={!session ? <RegisterAgency /> : <Navigate to="/dashboard" replace />} />
+          {session ? (
           <>
             <Route path="/complete-setup" element={(!authState.hasTenant && !authState.isAdminGlobal) ? <CompleteSetup onSetupComplete={() => session?.user && syncProfile(session.user.id)} /> : <Navigate to="/dashboard" replace />} />
             <Route path="/pending" element={authState.isPending ? <PendingApproval /> : <Navigate to="/dashboard" replace />} />
@@ -136,6 +143,7 @@ const App: React.FC = () => {
                     <Route path="/agencies" element={<Agencies />} />
                     <Route path="/users" element={<Users />} />
                     <Route path="/resellers" element={<Resellers />} />
+                    <Route path="/guichets" element={<Guichets />} />
                     <Route path="/tutorials" element={<Tutorials />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/subscriptions" element={<Subscriptions />} />
@@ -148,7 +156,8 @@ const App: React.FC = () => {
             } />
           </>
         ) : ( <Route path="*" element={<Navigate to="/login" replace />} /> )}
-      </Routes>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 };
