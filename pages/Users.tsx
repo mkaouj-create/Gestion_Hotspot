@@ -59,18 +59,22 @@ const Users: React.FC = () => {
     if (!userToDelete || confirmDeleteText !== 'SUPPRIMER') return;
     setIsDeleting(true);
     try {
-      await db.from('tickets').update({ status: TicketStatus.NEUF, assigned_to: null }).eq('assigned_to', userToDelete.id).eq('status', TicketStatus.ASSIGNE);
-      await db.from('sales_history').delete().eq('seller_id', userToDelete.id);
-      await db.from('payments').delete().eq('reseller_id', userToDelete.id);
-      await db.from('tickets').update({ sold_by: null }).eq('sold_by', userToDelete.id);
+      // On délègue toute la logique de nettoyage (tickets, ventes, paiements) 
+      // à la fonction RPC pour éviter les problèmes de permissions RLS côté client
       const { error: rpcError } = await db.rpc('delete_user_fully', { target_user_id: userToDelete.id });
+      
       if (rpcError) throw rpcError;
       
       notify('success', `Membre ${userToDelete.full_name} et toutes ses données supprimés.`); 
       setUsers(prev => prev.filter(u => u.id !== userToDelete.id)); 
       setUserToDelete(null); 
       setConfirmDeleteText('');
-    } catch (err: any) { notify('error', "Erreur lors de la suppression : " + err.message); } finally { setIsDeleting(false); }
+    } catch (err: any) { 
+      console.error("Erreur suppression:", err);
+      notify('error', "Erreur lors de la suppression : " + (err.message || "Erreur inconnue")); 
+    } finally { 
+      setIsDeleting(false); 
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

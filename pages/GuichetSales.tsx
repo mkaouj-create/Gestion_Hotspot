@@ -68,7 +68,7 @@ export default function GuichetSales() {
       const { data: profilesData, error: profilesError } = await guichetDb
         .from('ticket_profiles')
         .select(`
-          id, name, price, duration, volume,
+          id, name, price,
           tickets!inner(count)
         `)
         .eq('tenant_id', tenantId)
@@ -274,12 +274,8 @@ export default function GuichetSales() {
                   
                   <div className="flex flex-wrap gap-2">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 text-slate-600 text-xs font-bold">
-                      <Clock className="w-3.5 h-3.5" />
-                      {profile.duration}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 text-slate-600 text-xs font-bold">
-                      <Wifi className="w-3.5 h-3.5" />
-                      {profile.volume || 'Illimité'}
+                      <Ticket className="w-3.5 h-3.5" />
+                      Forfait Internet
                     </span>
                   </div>
                 </div>

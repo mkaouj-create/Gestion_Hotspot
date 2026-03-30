@@ -13,7 +13,7 @@ async function test() {
   const { data, error } = await supabase
     .from('ticket_profiles')
     .select(`
-      id, name, price, duration, volume,
+      id, name, price,
       tickets!inner(count)
     `)
     .limit(1);
