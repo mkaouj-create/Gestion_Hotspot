@@ -69,7 +69,7 @@ export default function GuichetSales() {
         .from('ticket_profiles')
         .select(`
           id, name, price, duration, volume,
-          tickets:tickets(count)
+          tickets!inner(count)
         `)
         .eq('tenant_id', tenantId)
         .eq('tickets.status', 'NEUF')
@@ -77,15 +77,23 @@ export default function GuichetSales() {
 
       if (profilesError) throw profilesError;
 
-      const formattedProfiles = profilesData?.map(p => ({
-        ...p,
-        available_count: p.tickets?.[0]?.count || 0
-      })).filter(p => p.available_count > 0) || [];
+      const formattedProfiles = profilesData?.map(p => {
+        let count = 0;
+        if (Array.isArray(p.tickets)) {
+          count = p.tickets[0]?.count || 0;
+        } else if (p.tickets && typeof p.tickets === 'object') {
+          count = (p.tickets as any).count || 0;
+        }
+        return {
+          ...p,
+          available_count: count
+        };
+      }).filter(p => p.available_count > 0) || [];
 
       setProfiles(formattedProfiles);
     } catch (err: any) {
       console.error('Error fetching profiles:', err);
-      setError('Erreur lors du chargement des profils.');
+      setError(`Erreur lors du chargement des profils: ${err.message || JSON.stringify(err)}`);
     } finally {
       setLoading(false);
     }
@@ -363,6 +371,14 @@ export default function GuichetSales() {
                   <p className="text-xl font-bold text-slate-700">{lastSoldTicket.password}</p>
                 </div>
               )}
+              <div className="mt-6 pt-6 border-t border-slate-200 flex justify-center">
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(lastSoldTicket.username)}`} 
+                  alt="Ticket QR" 
+                  className="w-32 h-32 rounded-xl shadow-sm" 
+                  referrerPolicy="no-referrer"
+                />
+              </div>
             </div>
 
             <button

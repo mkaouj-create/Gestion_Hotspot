@@ -138,6 +138,15 @@ CREATE POLICY "Guichet can view sales history" ON public.sales_history
         tenant_id = public.get_guichet_tenant_id()
     );
 
+-- ==============================================================================
+-- 7. GRANT PRIVILEGES TO ANON ROLE
+-- ==============================================================================
+-- Ensure the anon role can select from necessary tables for the Guichet interface
+GRANT SELECT ON public.ticket_profiles TO anon;
+GRANT SELECT, UPDATE ON public.tickets TO anon;
+GRANT SELECT, INSERT ON public.sales_history TO anon;
+GRANT SELECT ON public.tenants TO anon;
+
 -- Note: Assurez-vous que la table sales_history permet l'insertion sans seller_id 
 -- si le guichet est anonyme, ou modifiez la table pour accepter un seller_id null.
 ALTER TABLE public.sales_history ALTER COLUMN seller_id DROP NOT NULL;

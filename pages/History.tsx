@@ -519,6 +519,16 @@ const History: React.FC = () => {
                           <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-1 h-1.5 w-16 bg-brand-500 rounded-full"></div>
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">CODE VOUCHER</p>
                           <p className="text-4xl md:text-5xl font-black text-slate-900 tracking-[0.2em] mb-8 leading-none break-all">{selectedSale.tickets?.username}</p>
+                          
+                          <div className="flex justify-center mb-8">
+                            <img 
+                              src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedSale.tickets?.username || '')}`} 
+                              alt="Ticket QR" 
+                              className="w-32 h-32 rounded-xl shadow-sm" 
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+
                           <div className="grid grid-cols-2 gap-4 text-left border-t border-slate-100 pt-8">
                               <div><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Agence Source</p><p className="text-xs font-black text-slate-800">{selectedSale.tenants?.name}</p></div>
                               <div className="text-right"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Offre</p><p className="text-xs font-black text-brand-600">{selectedSale.tickets?.ticket_profiles?.name}</p></div>
