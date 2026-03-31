@@ -20,6 +20,7 @@ export default function GuichetSales() {
   const [selling, setSelling] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastSoldTicket, setLastSoldTicket] = useState<any>(null);
+  const [guichetInfo, setGuichetInfo] = useState<{tenant_id: string, guichet_id: string, name: string} | null>(null);
 
   // Initialize custom client
   const token = localStorage.getItem('guichet_token');
@@ -31,6 +32,20 @@ export default function GuichetSales() {
       return;
     }
 
+    const fetchGuichetInfo = async () => {
+      try {
+        const guichetDb = createGuichetClient(token!);
+        const { data, error } = await guichetDb.rpc('get_guichet_info', { p_token: token });
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setGuichetInfo(data[0]);
+        }
+      } catch (err) {
+        console.error('Error fetching guichet info:', err);
+      }
+    };
+
+    fetchGuichetInfo();
     fetchProfiles();
     fetchDailyStats();
   }, [tenantId, token, navigate]);
@@ -149,7 +164,9 @@ export default function GuichetSales() {
           amount_paid: selectedProfile.price,
           metadata: {
             customer_phone: customerPhone || null,
-            source: 'guichet'
+            source: 'guichet',
+            guichet_id: guichetInfo?.guichet_id || null,
+            guichet_name: guichetInfo?.name || null
           }
         });
 

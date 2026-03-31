@@ -5,7 +5,13 @@ import { UserRole } from '../types';
 
 export default function Guichets() {
   const [codes, setCodes] = useState<any[]>([]);
-  const [dailyStats, setDailyStats] = useState({ count: 0, revenue: 0 });
+  const [detailedStats, setDetailedStats] = useState({
+    today: { count: 0, revenue: 0 },
+    week: { count: 0, revenue: 0 },
+    month: { count: 0, revenue: 0 },
+    total: { count: 0, revenue: 0 }
+  });
+  const [guichetStats, setGuichetStats] = useState<Record<string, { todayCount: number, todayRevenue: number, totalCount: number, totalRevenue: number }>>({});
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   
@@ -32,7 +38,7 @@ export default function Guichets() {
   useEffect(() => {
     if (currentUser && currentUser.tenant_id) {
       fetchCodes();
-      fetchDailyStats();
+      fetchDetailedStats();
       if (currentUser.role === UserRole.ADMIN_GLOBAL) {
         fetchTenants();
       }
@@ -52,15 +58,19 @@ export default function Guichets() {
     }
   };
 
-  const fetchDailyStats = async () => {
+  const fetchDetailedStats = async () => {
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); // Lundi
+      
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
       let query = db
         .from('sales_history')
-        .select('amount_paid')
-        .gte('sold_at', today.toISOString())
+        .select('amount_paid, sold_at, metadata')
         .contains('metadata', { source: 'guichet' });
 
       if (currentUser.role !== UserRole.ADMIN_GLOBAL) {
@@ -71,12 +81,55 @@ export default function Guichets() {
 
       if (error) throw error;
 
-      const count = data?.length || 0;
-      const revenue = data?.reduce((sum, sale) => sum + (sale.amount_paid || 0), 0) || 0;
+      let stats = {
+        today: { count: 0, revenue: 0 },
+        week: { count: 0, revenue: 0 },
+        month: { count: 0, revenue: 0 },
+        total: { count: 0, revenue: 0 }
+      };
 
-      setDailyStats({ count, revenue });
+      let gStats: Record<string, { todayCount: number, todayRevenue: number, totalCount: number, totalRevenue: number }> = {};
+
+      data?.forEach(sale => {
+        const amount = sale.amount_paid || 0;
+        const soldAt = new Date(sale.sold_at);
+        const gId = sale.metadata?.guichet_id;
+
+        // Global stats
+        stats.total.count++;
+        stats.total.revenue += amount;
+
+        if (soldAt >= today) {
+          stats.today.count++;
+          stats.today.revenue += amount;
+        }
+        if (soldAt >= startOfWeek) {
+          stats.week.count++;
+          stats.week.revenue += amount;
+        }
+        if (soldAt >= startOfMonth) {
+          stats.month.count++;
+          stats.month.revenue += amount;
+        }
+
+        // Per guichet stats
+        if (gId) {
+          if (!gStats[gId]) {
+            gStats[gId] = { todayCount: 0, todayRevenue: 0, totalCount: 0, totalRevenue: 0 };
+          }
+          gStats[gId].totalCount++;
+          gStats[gId].totalRevenue += amount;
+          if (soldAt >= today) {
+            gStats[gId].todayCount++;
+            gStats[gId].todayRevenue += amount;
+          }
+        }
+      });
+
+      setDetailedStats(stats);
+      setGuichetStats(gStats);
     } catch (err) {
-      console.error('Error fetching daily stats:', err);
+      console.error('Error fetching detailed stats:', err);
     }
   };
 
@@ -141,12 +194,20 @@ export default function Guichets() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, tenantId: string) => {
     if (!window.confirm("Êtes-vous sûr de vouloir supprimer ce guichet ? Les sessions actives seront révoquées.")) return;
     
     try {
-      const { error } = await db.from('sales_access_codes').delete().eq('id', id);
-      if (error) throw error;
+      // 1. Supprimer le guichet
+      const { error: codeError } = await db.from('sales_access_codes').delete().eq('id', id);
+      if (codeError) throw codeError;
+
+      // 2. Révoquer les sessions actives pour ce tenant pour forcer la reconnexion
+      const { error: sessionError } = await db.from('guichet_sessions').delete().eq('tenant_id', tenantId);
+      if (sessionError) {
+        console.error('Erreur lors de la révocation des sessions:', sessionError);
+      }
+
       fetchCodes();
     } catch (err) {
       console.error('Erreur suppression guichet:', err);
@@ -198,29 +259,64 @@ export default function Guichets() {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center shrink-0">
-            <TrendingUp className="w-7 h-7 text-emerald-600" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center shrink-0">
+              <TrendingUp className="w-6 h-6 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aujourd'hui</p>
+              <p className="text-xl font-black text-slate-900">{detailedStats.today.revenue.toLocaleString()} <span className="text-xs text-slate-500">GNF</span></p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Recette Kiosques (Aujourd'hui)</p>
-            <p className="text-2xl font-black text-slate-900">{dailyStats.revenue.toLocaleString()} <span className="text-sm text-slate-500">GNF</span></p>
-          </div>
+          <p className="text-xs font-bold text-slate-500">{detailedStats.today.count} tickets vendus</p>
         </div>
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center shrink-0">
-            <Ticket className="w-7 h-7 text-blue-600" />
+
+        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center shrink-0">
+              <TrendingUp className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cette Semaine</p>
+              <p className="text-xl font-black text-slate-900">{detailedStats.week.revenue.toLocaleString()} <span className="text-xs text-slate-500">GNF</span></p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Tickets Vendus (Aujourd'hui)</p>
-            <p className="text-2xl font-black text-slate-900">{dailyStats.count}</p>
+          <p className="text-xs font-bold text-slate-500">{detailedStats.week.count} tickets vendus</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center shrink-0">
+              <TrendingUp className="w-6 h-6 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ce Mois</p>
+              <p className="text-xl font-black text-slate-900">{detailedStats.month.revenue.toLocaleString()} <span className="text-xs text-slate-500">GNF</span></p>
+            </div>
           </div>
+          <p className="text-xs font-bold text-slate-500">{detailedStats.month.count} tickets vendus</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center shrink-0">
+              <Ticket className="w-6 h-6 text-slate-600" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Historique</p>
+              <p className="text-xl font-black text-slate-900">{detailedStats.total.revenue.toLocaleString()} <span className="text-xs text-slate-500">GNF</span></p>
+            </div>
+          </div>
+          <p className="text-xs font-bold text-slate-500">{detailedStats.total.count} tickets vendus</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {codes.map((code) => (
+        {codes.map((code) => {
+          const stats = guichetStats[code.id] || { todayCount: 0, todayRevenue: 0, totalCount: 0, totalRevenue: 0 };
+          return (
           <div key={code.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-10 transition-all scale-150 rotate-12 pointer-events-none">
               <Store className="w-24 h-24 text-brand-600 fill-current" />
@@ -240,6 +336,24 @@ export default function Guichets() {
                   <Key className="w-5 h-5 text-slate-400" />
                 </div>
               </div>
+
+              <div className="space-y-3 mb-6 bg-slate-50 rounded-2xl p-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-500">Aujourd'hui</span>
+                  <div className="text-right">
+                    <span className="text-sm font-black text-emerald-600">{stats.todayRevenue.toLocaleString()} GNF</span>
+                    <span className="text-[10px] text-slate-400 block">{stats.todayCount} tickets</span>
+                  </div>
+                </div>
+                <div className="h-px bg-slate-200"></div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-500">Total</span>
+                  <div className="text-right">
+                    <span className="text-sm font-black text-slate-700">{stats.totalRevenue.toLocaleString()} GNF</span>
+                    <span className="text-[10px] text-slate-400 block">{stats.totalCount} tickets</span>
+                  </div>
+                </div>
+              </div>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">
                 Créé le {new Date(code.created_at).toLocaleDateString('fr-FR')}
               </p>
@@ -257,7 +371,7 @@ export default function Guichets() {
                 )}
               </button>
               <button
-                onClick={() => handleDelete(code.id)}
+                onClick={() => handleDelete(code.id, code.tenant_id)}
                 className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-100 transition-colors"
                 title="Supprimer ce guichet"
               >
@@ -265,7 +379,8 @@ export default function Guichets() {
               </button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {codes.length === 0 && (
