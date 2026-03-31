@@ -72,7 +72,7 @@ export default function GuichetSales() {
           tickets!inner(count)
         `)
         .eq('tenant_id', tenantId)
-        .eq('tickets.status', 'NEUF')
+        .in('tickets.status', ['NEUF', 'ASSIGNE'])
         .order('price', { ascending: true });
 
       if (profilesError) throw profilesError;
@@ -119,7 +119,7 @@ export default function GuichetSales() {
         .select('*')
         .eq('tenant_id', tenantId)
         .eq('profile_id', selectedProfile.id)
-        .eq('status', 'NEUF')
+        .in('status', ['NEUF', 'ASSIGNE'])
         .limit(1);
 
       if (fetchError) throw fetchError;
