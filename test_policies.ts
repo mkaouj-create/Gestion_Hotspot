@@ -6,16 +6,18 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function checkPolicies() {
-  const guichetClient = createClient(supabaseUrl, supabaseKey, {
-    global: {
-      headers: {
-        'x-guichet-token': '123e4567-e89b-12d3-a456-426614174000'
-      }
-    }
-  });
-  
-  const { data, error } = await guichetClient.rpc('get_guichet_tenant_id');
-  console.log('get_guichet_tenant_id (with fake token):', error ? error.message : data);
+  console.log("Please run the following SQL in the Supabase SQL Editor to check the policies:");
+  console.log(`
+SELECT 
+    pol.polname as policy_name,
+    CASE WHEN pol.polpermissive THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END as type,
+    pol.polcmd as command,
+    pg_get_expr(pol.polqual, pol.polrelid) as using_expr,
+    pg_get_expr(pol.polwithcheck, pol.polrelid) as with_check_expr
+FROM pg_policy pol
+JOIN pg_class c ON c.oid = pol.polrelid
+WHERE c.relname = 'tickets';
+  `);
 }
 
 checkPolicies();
