@@ -20,7 +20,7 @@ export default function GuichetSales() {
   const [selling, setSelling] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastSoldTicket, setLastSoldTicket] = useState<any>(null);
-  const [guichetInfo, setGuichetInfo] = useState<{tenant_id: string, guichet_id: string, name: string} | null>(null);
+  const [guichetInfo, setGuichetInfo] = useState<{tenant_id: string, guichet_id: string, name: string, allowed_profiles?: string[]} | null>(null);
 
   // Initialize custom client
   const token = localStorage.getItem('guichet_token');
@@ -40,17 +40,19 @@ export default function GuichetSales() {
         if (data && data.length > 0) {
           setGuichetInfo(data[0]);
           fetchDailyStats(data[0].guichet_id);
+          fetchProfiles(data[0].allowed_profiles);
         } else {
           fetchDailyStats();
+          fetchProfiles();
         }
       } catch (err) {
         console.error('Error fetching guichet info:', err);
         fetchDailyStats();
+        fetchProfiles();
       }
     };
 
     fetchGuichetInfo();
-    fetchProfiles();
   }, [tenantId, token, navigate]);
 
   const fetchDailyStats = async (guichetId?: string) => {
@@ -84,13 +86,12 @@ export default function GuichetSales() {
     }
   };
 
-  const fetchProfiles = async () => {
+  const fetchProfiles = async (allowedProfiles?: string[]) => {
     try {
       setLoading(true);
       const guichetDb = createGuichetClient(token!);
 
-      // Fetch profiles with available tickets count
-      const { data: profilesData, error: profilesError } = await guichetDb
+      let query = guichetDb
         .from('ticket_profiles')
         .select(`
           id, name, price,
@@ -99,6 +100,13 @@ export default function GuichetSales() {
         .eq('tenant_id', tenantId)
         .in('tickets.status', ['NEUF', 'ASSIGNE'])
         .order('price', { ascending: true });
+
+      // Apply filter if allowedProfiles is set and not empty
+      if (allowedProfiles && allowedProfiles.length > 0) {
+        query = query.in('id', allowedProfiles);
+      }
+
+      const { data: profilesData, error: profilesError } = await query;
 
       if (profilesError) throw profilesError;
 
@@ -190,7 +198,7 @@ export default function GuichetSales() {
       setShowSuccessModal(true);
       
       // Refresh profiles and stats
-      fetchProfiles();
+      fetchProfiles(guichetInfo?.allowed_profiles);
       fetchDailyStats(guichetInfo?.guichet_id);
 
     } catch (err: any) {

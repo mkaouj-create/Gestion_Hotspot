@@ -17,10 +17,20 @@ export default function Guichets() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState<any>(null);
+  const [showHistoryModal, setShowHistoryModal] = useState<string | null>(null);
+  const [collectionHistory, setCollectionHistory] = useState<any[]>([]);
+  
   const [newName, setNewName] = useState('');
   const [newPin, setNewPin] = useState('');
   const [selectedTenant, setSelectedTenant] = useState('');
+  const [selectedReseller, setSelectedReseller] = useState<string>('');
+  const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
+  
   const [tenants, setTenants] = useState<any[]>([]);
+  const [resellers, setResellers] = useState<any[]>([]);
+  const [profilesList, setProfilesList] = useState<any[]>([]);
+  
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -40,11 +50,31 @@ export default function Guichets() {
   useEffect(() => {
     if (currentUser && currentUser.tenant_id) {
       fetchAllData();
+      fetchResellersAndProfiles();
       if (currentUser.role === UserRole.ADMIN_GLOBAL) {
         fetchTenants();
       }
     }
   }, [currentUser]);
+
+  const fetchResellersAndProfiles = async () => {
+    try {
+      let usersQuery = db.from('users').select('id, full_name, email').eq('role', 'REVENDEUR');
+      let profilesQuery = db.from('ticket_profiles').select('id, name, price');
+
+      if (currentUser.role !== UserRole.ADMIN_GLOBAL) {
+        usersQuery = usersQuery.eq('tenant_id', currentUser.tenant_id);
+        profilesQuery = profilesQuery.eq('tenant_id', currentUser.tenant_id);
+      }
+
+      const [usersRes, profilesRes] = await Promise.all([usersQuery, profilesQuery]);
+      
+      if (usersRes.data) setResellers(usersRes.data);
+      if (profilesRes.data) setProfilesList(profilesRes.data);
+    } catch (err) {
+      console.error('Error fetching resellers/profiles:', err);
+    }
+  };
 
   const fetchTenants = async () => {
     try {
@@ -66,7 +96,7 @@ export default function Guichets() {
       // 1. Fetch Guichets
       let codesQuery = db
         .from('sales_access_codes')
-        .select('id, name, created_at, last_collection_at, tenant_id, tenants(name)')
+        .select('id, name, created_at, last_collection_at, tenant_id, reseller_id, allowed_profiles, tenants(name)')
         .order('created_at', { ascending: false });
 
       if (currentUser.role !== UserRole.ADMIN_GLOBAL) {
@@ -182,7 +212,9 @@ export default function Guichets() {
       const { error: rpcError } = await db.rpc('create_guichet_code', {
         p_tenant_id: tenantIdToUse,
         p_name: newName.trim(),
-        p_pin: newPin
+        p_pin: newPin,
+        p_reseller_id: selectedReseller || null,
+        p_allowed_profiles: selectedProfiles.length > 0 ? selectedProfiles : null
       });
 
       if (rpcError) throw rpcError;
@@ -190,10 +222,64 @@ export default function Guichets() {
       setShowAddModal(false);
       setNewName('');
       setNewPin('');
+      setSelectedReseller('');
+      setSelectedProfiles([]);
       fetchAllData();
     } catch (err: any) {
       console.error('Erreur création guichet:', err);
       setError(err.message || "Erreur lors de la création du guichet.");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleEditCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) {
+      setError("Veuillez fournir un nom.");
+      return;
+    }
+
+    setProcessing(true);
+    setError('');
+
+    try {
+      const { error: rpcError } = await db.rpc('update_guichet_code', {
+        p_guichet_id: showEditModal.id,
+        p_name: newName.trim(),
+        p_reseller_id: selectedReseller || null,
+        p_allowed_profiles: selectedProfiles.length > 0 ? selectedProfiles : null
+      });
+
+      if (rpcError) throw rpcError;
+
+      setShowEditModal(null);
+      setNewName('');
+      setSelectedReseller('');
+      setSelectedProfiles([]);
+      fetchAllData();
+    } catch (err: any) {
+      console.error('Erreur modification guichet:', err);
+      setError(err.message || "Erreur lors de la modification du guichet.");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const fetchHistory = async (guichetId: string) => {
+    try {
+      setProcessing(true);
+      const { data, error } = await db
+        .from('guichet_collections')
+        .select('*, users(full_name)')
+        .eq('guichet_id', guichetId)
+        .order('collected_at', { ascending: false });
+        
+      if (error) throw error;
+      setCollectionHistory(data || []);
+      setShowHistoryModal(guichetId);
+    } catch (err) {
+      console.error('Error fetching history:', err);
     } finally {
       setProcessing(false);
     }
@@ -220,11 +306,35 @@ export default function Guichets() {
     }
   };
 
-  const copyLink = (id: string, tenantId: string) => {
+  const copyLink = async (id: string, tenantId: string) => {
     const url = `${window.location.origin}/guichet?tenant_id=${tenantId}`;
-    navigator.clipboard.writeText(url);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        // Fallback for non-secure contexts
+        const textArea = document.createElement("textarea");
+        textArea.value = url;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+        } catch (err) {
+          console.error('Fallback copy failed', err);
+          throw new Error('Fallback copy failed');
+        }
+        textArea.remove();
+      }
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      alert("Impossible de copier le lien automatiquement. Veuillez le copier manuellement : " + url);
+    }
   };
 
   const handleCollectCash = async (guichetId: string, amount: number) => {
@@ -410,9 +520,9 @@ export default function Guichets() {
                   className="flex-1 h-10 bg-slate-50 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"
                 >
                   {copiedId === code.id ? (
-                    <><Check className="w-4 h-4 text-emerald-500" /> Lien copié</>
+                    <><Check className="w-4 h-4 text-emerald-500" /> Copié</>
                   ) : (
-                    <><Copy className="w-4 h-4" /> Copier le lien</>
+                    <><Copy className="w-4 h-4" /> Lien</>
                   )}
                 </button>
                 <button
@@ -421,6 +531,25 @@ export default function Guichets() {
                   title="Afficher le QR Code"
                 >
                   <QrCode className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => fetchHistory(code.id)}
+                  className="w-10 h-10 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-colors"
+                  title="Historique des versements"
+                >
+                  <TrendingUp className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setShowEditModal(code);
+                    setNewName(code.name);
+                    setSelectedReseller(code.reseller_id || '');
+                    setSelectedProfiles(code.allowed_profiles || []);
+                  }}
+                  className="w-10 h-10 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-colors"
+                  title="Modifier le guichet"
+                >
+                  <Key className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => handleDelete(code.id, code.tenant_id)}
@@ -508,6 +637,55 @@ export default function Guichets() {
                 <p className="text-xs text-slate-400 mt-2 text-center">Ce code sera demandé au revendeur pour accéder au guichet.</p>
               </div>
 
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
+                  Assigner à un Revendeur (Optionnel)
+                </label>
+                <select
+                  value={selectedReseller}
+                  onChange={(e) => setSelectedReseller(e.target.value)}
+                  className="w-full px-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-bold text-slate-900 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all"
+                >
+                  <option value="">-- Aucun revendeur --</option>
+                  {resellers.map(r => (
+                    <option key={r.id} value={r.id}>{r.full_name || r.email}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
+                  Forfaits Autorisés (Optionnel)
+                </label>
+                <div className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 max-h-40 overflow-y-auto space-y-2">
+                  {profilesList.length === 0 ? (
+                    <p className="text-xs text-slate-500 text-center py-2">Aucun forfait disponible.</p>
+                  ) : (
+                    profilesList.map(profile => (
+                      <label key={profile.id} className="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-xl cursor-pointer transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={selectedProfiles.includes(profile.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedProfiles([...selectedProfiles, profile.id]);
+                            } else {
+                              setSelectedProfiles(selectedProfiles.filter(id => id !== profile.id));
+                            }
+                          }}
+                          className="w-5 h-5 rounded-md border-slate-300 text-brand-500 focus:ring-brand-500"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-slate-900">{profile.name}</p>
+                          <p className="text-xs text-slate-500">{profile.price.toLocaleString()} GNF</p>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-2">Si aucun n'est sélectionné, tous les forfaits seront disponibles.</p>
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
@@ -562,6 +740,158 @@ export default function Guichets() {
             <div className="bg-amber-50 rounded-xl p-4 text-left">
               <p className="text-xs font-bold text-amber-800 mb-1">⚠️ Attention</p>
               <p className="text-xs text-amber-700">Le code PIN sera toujours requis pour se connecter après avoir scanné ce QR code.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => !processing && setShowEditModal(null)} />
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 relative z-10 shadow-2xl">
+            <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-6">Modifier le Guichet</h3>
+            
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-bold flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <p>{error}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleEditCode} className="space-y-6">
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
+                  Nom du Guichet
+                </label>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className="w-full px-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-bold text-slate-900 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
+                  Assigner à un Revendeur (Optionnel)
+                </label>
+                <select
+                  value={selectedReseller}
+                  onChange={(e) => setSelectedReseller(e.target.value)}
+                  className="w-full px-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-bold text-slate-900 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all"
+                >
+                  <option value="">-- Aucun revendeur --</option>
+                  {resellers.map(r => (
+                    <option key={r.id} value={r.id}>{r.full_name || r.email}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
+                  Forfaits Autorisés (Optionnel)
+                </label>
+                <div className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 max-h-40 overflow-y-auto space-y-2">
+                  {profilesList.length === 0 ? (
+                    <p className="text-xs text-slate-500 text-center py-2">Aucun forfait disponible.</p>
+                  ) : (
+                    profilesList.map(profile => (
+                      <label key={profile.id} className="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-xl cursor-pointer transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={selectedProfiles.includes(profile.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedProfiles([...selectedProfiles, profile.id]);
+                            } else {
+                              setSelectedProfiles(selectedProfiles.filter(id => id !== profile.id));
+                            }
+                          }}
+                          className="w-5 h-5 rounded-md border-slate-300 text-brand-500 focus:ring-brand-500"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-slate-900">{profile.name}</p>
+                          <p className="text-xs text-slate-500">{profile.price.toLocaleString()} GNF</p>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-2">Si aucun n'est sélectionné, tous les forfaits seront disponibles.</p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(null)}
+                  disabled={processing}
+                  className="flex-1 h-12 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={processing || !newName.trim()}
+                  className="flex-1 h-12 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors disabled:opacity-50 flex items-center justify-center"
+                >
+                  {processing ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Enregistrer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowHistoryModal(null)} />
+          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] p-8 relative z-10 shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight">Historique des versements</h3>
+              <button 
+                onClick={() => setShowHistoryModal(null)}
+                className="w-8 h-8 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center hover:bg-slate-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto min-h-[300px]">
+              {collectionHistory.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                  <TrendingUp className="w-12 h-12 mb-4 opacity-20" />
+                  <p>Aucun versement enregistré pour ce guichet.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {collectionHistory.map((history) => (
+                    <div key={history.id} className="bg-slate-50 rounded-2xl p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-green-100 text-green-600 rounded-xl flex items-center justify-center">
+                          <TrendingUp className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900">
+                            {new Date(history.collected_at).toLocaleDateString('fr-FR', {
+                              day: 'numeric', month: 'long', year: 'numeric',
+                              hour: '2-digit', minute: '2-digit'
+                            })}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            Collecté par : {history.users?.full_name || 'Administrateur'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-lg text-slate-900">
+                          {history.amount.toLocaleString()} GNF
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

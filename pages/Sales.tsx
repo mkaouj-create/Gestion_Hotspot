@@ -17,6 +17,8 @@ const Sales: React.FC = () => {
   const [lastSoldTicket, setLastSoldTicket] = useState<any>(null);
   const [currency, setCurrency] = useState('GNF');
 
+  const [copiedCode, setCopiedCode] = useState(false);
+
   useEffect(() => { fetchInitialData(); }, []);
 
   const fetchInitialData = async () => {
@@ -92,7 +94,39 @@ const Sales: React.FC = () => {
   };
 
   const handleWhatsAppShare = () => { if (!lastSoldTicket) return; window.open(`https://wa.me/?text=${encodeURIComponent(`*WIFI ZONE*\n🎟️ CODE : *${lastSoldTicket.username}*\n📦 FORFAIT : ${lastSoldTicket.profile_name}\n💰 PRIX : ${Number(lastSoldTicket.price).toLocaleString()} ${currency}\n\n_Merci pour votre achat !_`)}`, '_blank'); };
-  const copyCode = () => { if (lastSoldTicket) navigator.clipboard.writeText(lastSoldTicket.username); };
+  
+  const copyCode = async () => { 
+    if (!lastSoldTicket) return; 
+    const code = lastSoldTicket.username;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(code);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = code;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+        } catch (err) {
+          console.error('Fallback copy failed', err);
+          throw new Error('Fallback copy failed');
+        } finally {
+          textArea.remove();
+        }
+      }
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy code: ', err);
+      alert("Impossible de copier le code. Veuillez le sélectionner et le copier manuellement.");
+    }
+  };
+
   const filteredProfiles = profiles.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
@@ -218,7 +252,7 @@ const Sales: React.FC = () => {
                 <div className="flex items-center justify-center gap-3 mb-6">
                     <p className="text-4xl font-black text-slate-900 tracking-[0.15em] leading-none break-all">{lastSoldTicket.username}</p>
                     <button onClick={copyCode} className="p-2 bg-white text-slate-400 hover:text-brand-600 rounded-lg shadow-sm border border-slate-100 transition-all active:scale-90 shrink-0">
-                        <Copy className="w-4 h-4" />
+                        {copiedCode ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
                     </button>
                 </div>
                 <div className="bg-white p-4 rounded-[2rem] inline-block shadow-xl border border-slate-50 mb-2">
