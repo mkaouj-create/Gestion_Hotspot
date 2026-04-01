@@ -9,11 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.39.7",
+    "lucide-react": "^0.562.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "react-router-dom": "^7.12.0",
-    "lucide-react": "^0.562.0",
-    "@supabase/supabase-js": "2.39.7"
+    "react-router-dom": "^7.12.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

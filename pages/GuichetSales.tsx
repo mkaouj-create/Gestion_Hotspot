@@ -39,34 +39,44 @@ export default function GuichetSales() {
         if (error) throw error;
         if (data && data.length > 0) {
           setGuichetInfo(data[0]);
+          fetchDailyStats(data[0].guichet_id);
+        } else {
+          fetchDailyStats();
         }
       } catch (err) {
         console.error('Error fetching guichet info:', err);
+        fetchDailyStats();
       }
     };
 
     fetchGuichetInfo();
     fetchProfiles();
-    fetchDailyStats();
   }, [tenantId, token, navigate]);
 
-  const fetchDailyStats = async () => {
+  const fetchDailyStats = async (guichetId?: string) => {
     try {
       const guichetDb = createGuichetClient(token!);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const { data, error } = await guichetDb
+      let query = guichetDb
         .from('sales_history')
-        .select('amount_paid')
+        .select('amount_paid, metadata')
         .eq('tenant_id', tenantId)
         .gte('sold_at', today.toISOString())
         .contains('metadata', { source: 'guichet' });
 
+      const { data, error } = await query;
+
       if (error) throw error;
 
-      const count = data?.length || 0;
-      const revenue = data?.reduce((sum, sale) => sum + (sale.amount_paid || 0), 0) || 0;
+      // Filter by guichet_id if available
+      const filteredData = guichetId 
+        ? data?.filter(sale => sale.metadata?.guichet_id === guichetId)
+        : data;
+
+      const count = filteredData?.length || 0;
+      const revenue = filteredData?.reduce((sum, sale) => sum + (sale.amount_paid || 0), 0) || 0;
 
       setDailyStats({ count, revenue });
     } catch (err) {
@@ -181,7 +191,7 @@ export default function GuichetSales() {
       
       // Refresh profiles and stats
       fetchProfiles();
-      fetchDailyStats();
+      fetchDailyStats(guichetInfo?.guichet_id);
 
     } catch (err: any) {
       console.error('Sale error:', err);
@@ -195,6 +205,10 @@ export default function GuichetSales() {
     localStorage.removeItem('guichet_token');
     localStorage.removeItem('guichet_tenant');
     navigate(`/guichet?tenant_id=${tenantId}`);
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   const filteredProfiles = profiles.filter(p => 
@@ -365,17 +379,24 @@ export default function GuichetSales() {
       )}
 
       {showSuccessModal && lastSoldTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-xl" onClick={() => setShowSuccessModal(false)} />
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 relative z-10 text-center shadow-2xl animate-in zoom-in-95">
-            <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in print:p-0 print:bg-white print:static print:inset-auto">
+          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-xl print:hidden" onClick={() => setShowSuccessModal(false)} />
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 relative z-10 text-center shadow-2xl animate-in zoom-in-95 print:shadow-none print:p-0 print:max-w-none">
+            <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6 print:hidden">
               <CheckCircle2 className="w-10 h-10" />
             </div>
             
-            <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">Vente Réussie !</h3>
-            <p className="text-slate-500 text-sm mb-8">Le ticket a été généré avec succès.</p>
+            <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2 print:hidden">Vente Réussie !</h3>
+            <p className="text-slate-500 text-sm mb-8 print:hidden">Le ticket a été généré avec succès.</p>
 
-            <div className="bg-slate-50 rounded-3xl p-6 border-2 border-dashed border-slate-200 mb-8 relative">
+            {/* Ticket Content for Print */}
+            <div className="bg-slate-50 rounded-3xl p-6 border-2 border-dashed border-slate-200 mb-8 relative print:border-none print:bg-white print:p-0 print:mb-0">
+              <div className="hidden print:block mb-4">
+                <h2 className="text-xl font-black text-slate-900">Univers WiFi</h2>
+                <p className="text-sm text-slate-500">{guichetInfo?.name || 'Guichet'}</p>
+                <p className="text-xs text-slate-400">{new Date().toLocaleString()}</p>
+              </div>
+
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">CODE VOUCHER</p>
               <p className="text-4xl font-black text-slate-900 tracking-[0.2em]">{lastSoldTicket.username}</p>
               {lastSoldTicket.password && (
@@ -388,18 +409,31 @@ export default function GuichetSales() {
                 <img 
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(lastSoldTicket.username)}`} 
                   alt="Ticket QR" 
-                  className="w-32 h-32 rounded-xl shadow-sm" 
+                  className="w-32 h-32 rounded-xl shadow-sm print:shadow-none" 
                   referrerPolicy="no-referrer"
                 />
               </div>
+              
+              <div className="hidden print:block mt-6 pt-4 border-t border-slate-200">
+                <p className="text-lg font-black text-slate-900">{lastSoldTicket.profile?.name}</p>
+                <p className="text-xl font-black text-brand-600">{lastSoldTicket.profile?.price?.toLocaleString()} GNF</p>
+              </div>
             </div>
 
-            <button
-              onClick={() => setShowSuccessModal(false)}
-              className="w-full h-14 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-slate-800 transition-all active:scale-95"
-            >
-              Fermer
-            </button>
+            <div className="flex gap-3 print:hidden">
+              <button
+                onClick={handlePrint}
+                className="flex-1 h-14 bg-slate-100 text-slate-900 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all active:scale-95"
+              >
+                Imprimer
+              </button>
+              <button
+                onClick={() => setShowSuccessModal(false)}
+                className="flex-1 h-14 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-slate-800 transition-all active:scale-95"
+              >
+                Fermer
+              </button>
+            </div>
           </div>
         </div>
       )}

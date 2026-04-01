@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Store, Key, Trash2, Plus, Copy, Check, AlertCircle, Loader2, TrendingUp, Ticket } from 'lucide-react';
+import { Store, Key, Trash2, Plus, Copy, Check, AlertCircle, Loader2, TrendingUp, Ticket, QrCode, X } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { db } from '../services/db';
 import { UserRole } from '../types';
 
@@ -23,6 +24,7 @@ export default function Guichets() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showQrModal, setShowQrModal] = useState<string | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -37,8 +39,7 @@ export default function Guichets() {
 
   useEffect(() => {
     if (currentUser && currentUser.tenant_id) {
-      fetchCodes();
-      fetchDetailedStats();
+      fetchAllData();
       if (currentUser.role === UserRole.ADMIN_GLOBAL) {
         fetchTenants();
       }
@@ -58,28 +59,44 @@ export default function Guichets() {
     }
   };
 
-  const fetchDetailedStats = async () => {
+  const fetchAllData = async () => {
     try {
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      setLoading(true);
       
-      const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); // Lundi
-      
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      // 1. Fetch Guichets
+      let codesQuery = db
+        .from('sales_access_codes')
+        .select('id, name, created_at, last_collection_at, tenant_id, tenants(name)')
+        .order('created_at', { ascending: false });
 
-      let query = db
+      if (currentUser.role !== UserRole.ADMIN_GLOBAL) {
+        codesQuery = codesQuery.eq('tenant_id', currentUser.tenant_id);
+      }
+
+      const { data: codesData, error: codesError } = await codesQuery;
+      if (codesError) throw codesError;
+      
+      setCodes(codesData || []);
+
+      // 2. Fetch Sales
+      let salesQuery = db
         .from('sales_history')
         .select('amount_paid, sold_at, metadata')
         .contains('metadata', { source: 'guichet' });
 
       if (currentUser.role !== UserRole.ADMIN_GLOBAL) {
-        query = query.eq('tenant_id', currentUser.tenant_id);
+        salesQuery = salesQuery.eq('tenant_id', currentUser.tenant_id);
       }
 
-      const { data, error } = await query;
+      const { data: salesData, error: salesError } = await salesQuery;
+      if (salesError) throw salesError;
 
-      if (error) throw error;
+      // 3. Compute Stats
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1));
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
       let stats = {
         today: { count: 0, revenue: 0 },
@@ -88,9 +105,14 @@ export default function Guichets() {
         total: { count: 0, revenue: 0 }
       };
 
-      let gStats: Record<string, { todayCount: number, todayRevenue: number, totalCount: number, totalRevenue: number }> = {};
+      let gStats: Record<string, { todayCount: number, todayRevenue: number, totalCount: number, totalRevenue: number, uncollectedRevenue: number }> = {};
 
-      data?.forEach(sale => {
+      // Initialize gStats with codes
+      codesData?.forEach(code => {
+        gStats[code.id] = { todayCount: 0, todayRevenue: 0, totalCount: 0, totalRevenue: 0, uncollectedRevenue: 0 };
+      });
+
+      salesData?.forEach(sale => {
         const amount = sale.amount_paid || 0;
         const soldAt = new Date(sale.sold_at);
         const gId = sale.metadata?.guichet_id;
@@ -113,15 +135,19 @@ export default function Guichets() {
         }
 
         // Per guichet stats
-        if (gId) {
-          if (!gStats[gId]) {
-            gStats[gId] = { todayCount: 0, todayRevenue: 0, totalCount: 0, totalRevenue: 0 };
-          }
+        if (gId && gStats[gId]) {
           gStats[gId].totalCount++;
           gStats[gId].totalRevenue += amount;
           if (soldAt >= today) {
             gStats[gId].todayCount++;
             gStats[gId].todayRevenue += amount;
+          }
+          
+          // Uncollected revenue
+          const code = codesData?.find(c => c.id === gId);
+          const lastCollection = code?.last_collection_at ? new Date(code.last_collection_at) : new Date(0);
+          if (soldAt > lastCollection) {
+            gStats[gId].uncollectedRevenue += amount;
           }
         }
       });
@@ -129,28 +155,7 @@ export default function Guichets() {
       setDetailedStats(stats);
       setGuichetStats(gStats);
     } catch (err) {
-      console.error('Error fetching detailed stats:', err);
-    }
-  };
-
-  const fetchCodes = async () => {
-    try {
-      setLoading(true);
-      let query = db
-        .from('sales_access_codes')
-        .select('id, name, created_at, tenant_id, tenants(name)')
-        .order('created_at', { ascending: false });
-
-      if (currentUser.role !== UserRole.ADMIN_GLOBAL) {
-        query = query.eq('tenant_id', currentUser.tenant_id);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      setCodes(data || []);
-    } catch (err) {
-      console.error('Erreur lors du chargement des guichets', err);
+      console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
     }
@@ -185,7 +190,7 @@ export default function Guichets() {
       setShowAddModal(false);
       setNewName('');
       setNewPin('');
-      fetchCodes();
+      fetchAllData();
     } catch (err: any) {
       console.error('Erreur création guichet:', err);
       setError(err.message || "Erreur lors de la création du guichet.");
@@ -208,7 +213,7 @@ export default function Guichets() {
         console.error('Erreur lors de la révocation des sessions:', sessionError);
       }
 
-      fetchCodes();
+      fetchAllData();
     } catch (err) {
       console.error('Erreur suppression guichet:', err);
       alert("Erreur lors de la suppression.");
@@ -220,6 +225,29 @@ export default function Guichets() {
     navigator.clipboard.writeText(url);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleCollectCash = async (guichetId: string, amount: number) => {
+    if (amount <= 0) return;
+    if (!window.confirm(`Confirmer la collecte de ${amount.toLocaleString()} GNF pour ce guichet ?`)) return;
+
+    try {
+      setProcessing(true);
+      const { error } = await db.rpc('collect_guichet_cash', {
+        p_guichet_id: guichetId,
+        p_amount: amount
+      });
+
+      if (error) throw error;
+      
+      alert("Caisse collectée avec succès !");
+      fetchAllData();
+    } catch (err: any) {
+      console.error('Erreur lors de la collecte:', err);
+      alert("Erreur lors de la collecte de la caisse.");
+    } finally {
+      setProcessing(false);
+    }
   };
 
   if (loading) {
@@ -339,6 +367,13 @@ export default function Guichets() {
 
               <div className="space-y-3 mb-6 bg-slate-50 rounded-2xl p-4">
                 <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-500">Caisse à collecter</span>
+                  <div className="text-right">
+                    <span className="text-sm font-black text-brand-600">{stats.uncollectedRevenue.toLocaleString()} GNF</span>
+                  </div>
+                </div>
+                <div className="h-px bg-slate-200"></div>
+                <div className="flex justify-between items-center">
                   <span className="text-xs font-bold text-slate-500">Aujourd'hui</span>
                   <div className="text-right">
                     <span className="text-sm font-black text-emerald-600">{stats.todayRevenue.toLocaleString()} GNF</span>
@@ -359,24 +394,42 @@ export default function Guichets() {
               </p>
             </div>
 
-            <div className="relative z-10 flex items-center gap-2 mt-4 pt-4 border-t border-slate-100">
-              <button
-                onClick={() => copyLink(code.id, code.tenant_id)}
-                className="flex-1 h-10 bg-slate-50 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"
-              >
-                {copiedId === code.id ? (
-                  <><Check className="w-4 h-4 text-emerald-500" /> Lien copié</>
-                ) : (
-                  <><Copy className="w-4 h-4" /> Copier le lien</>
-                )}
-              </button>
-              <button
-                onClick={() => handleDelete(code.id, code.tenant_id)}
-                className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-100 transition-colors"
-                title="Supprimer ce guichet"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+            <div className="relative z-10 flex flex-col gap-2 mt-4 pt-4 border-t border-slate-100">
+              {stats.uncollectedRevenue > 0 && (
+                <button
+                  onClick={() => handleCollectCash(code.id, stats.uncollectedRevenue)}
+                  disabled={processing}
+                  className="w-full h-10 bg-brand-50 text-brand-600 rounded-xl font-bold text-xs hover:bg-brand-100 transition-colors flex items-center justify-center gap-2"
+                >
+                  <TrendingUp className="w-4 h-4" /> Collecter la caisse
+                </button>
+              )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => copyLink(code.id, code.tenant_id)}
+                  className="flex-1 h-10 bg-slate-50 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"
+                >
+                  {copiedId === code.id ? (
+                    <><Check className="w-4 h-4 text-emerald-500" /> Lien copié</>
+                  ) : (
+                    <><Copy className="w-4 h-4" /> Copier le lien</>
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowQrModal(code.id)}
+                  className="w-10 h-10 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-colors"
+                  title="Afficher le QR Code"
+                >
+                  <QrCode className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleDelete(code.id, code.tenant_id)}
+                  className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-100 transition-colors"
+                  title="Supprimer ce guichet"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
           );
@@ -473,6 +526,43 @@ export default function Guichets() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showQrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowQrModal(null)} />
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 relative z-10 shadow-2xl text-center">
+            <button 
+              onClick={() => setShowQrModal(null)}
+              className="absolute top-6 right-6 w-8 h-8 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center hover:bg-slate-200 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            
+            <div className="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <QrCode className="w-8 h-8 text-brand-600" />
+            </div>
+            
+            <h3 className="text-xl font-black text-slate-900 tracking-tight mb-2">
+              {codes.find(c => c.id === showQrModal)?.name}
+            </h3>
+            <p className="text-sm text-slate-500 mb-8">Scannez ce QR code pour accéder directement au guichet de vente.</p>
+            
+            <div className="bg-white p-4 rounded-2xl border-2 border-slate-100 inline-block mb-6 shadow-sm">
+              <QRCodeSVG 
+                value={`${window.location.origin}/guichet?tenant_id=${codes.find(c => c.id === showQrModal)?.tenant_id}`}
+                size={200}
+                level="H"
+                includeMargin={false}
+              />
+            </div>
+            
+            <div className="bg-amber-50 rounded-xl p-4 text-left">
+              <p className="text-xs font-bold text-amber-800 mb-1">⚠️ Attention</p>
+              <p className="text-xs text-amber-700">Le code PIN sera toujours requis pour se connecter après avoir scanné ce QR code.</p>
+            </div>
           </div>
         </div>
       )}
