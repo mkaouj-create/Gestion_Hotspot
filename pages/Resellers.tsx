@@ -75,7 +75,7 @@ const Resellers: React.FC = () => {
   const fetchPendingRequests = async () => {
       try {
           let query = db.from('payments')
-            .select('*, users!payments_reseller_id_fkey(full_name)')
+            .select('*, users!reseller_id(full_name)')
             .eq('status', 'PENDING')
             .order('created_at', { ascending: false });
 
@@ -173,7 +173,7 @@ const Resellers: React.FC = () => {
     setLoadingHistory(true);
     try {
       const { data, error } = await db.from('payments')
-        .select('*, users!payments_created_by_fkey(full_name)') 
+        .select('*, users!created_by(full_name)') 
         .eq('reseller_id', resellerId)
         .order('created_at', { ascending: false });
         

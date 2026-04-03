@@ -105,7 +105,7 @@ const History: React.FC = () => {
             id, amount_paid, sold_at, metadata, ticket_id, tenant_id, seller_id, 
             tenants(name), 
             tickets!inner(id, username, password, status, profile_id, ticket_profiles(name)), 
-            users(full_name)
+            users!seller_id(full_name)
         `);
 
       if (currentUser.role === UserRole.REVENDEUR) {
@@ -149,7 +149,7 @@ const History: React.FC = () => {
             .select(`
                 id, amount, created_at, payment_method, phone_number, status, tenant_id, reseller_id,
                 tenants(name),
-                users!payments_reseller_id_fkey(full_name)
+                users!reseller_id(full_name)
             `);
 
           if (currentUser.role === UserRole.REVENDEUR) {

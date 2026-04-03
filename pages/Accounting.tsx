@@ -17,13 +17,16 @@ const Accounting: React.FC = () => {
   const [currency, setCurrency] = useState('GNF');
 
   const fetchLedger = useCallback(async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
       
-      let salesQuery = db.from('sales_history').select('*, tickets(username), users(full_name)');
-      let paymentsQuery = db.from('payments').select('*, users(full_name)');
+      let salesQuery = db.from('sales_history').select('*, tickets(username), users!seller_id(full_name)');
+      let paymentsQuery = db.from('payments').select('*, users!reseller_id(full_name)');
 
       if (currentUser.role === UserRole.REVENDEUR) {
         salesQuery = salesQuery.eq('seller_id', currentUser.id);
@@ -129,6 +132,16 @@ const Accounting: React.FC = () => {
   }, [fetchLedger]);
 
   const isReseller = currentUser?.role === UserRole.REVENDEUR;
+
+  if (error) {
+    return (
+      <div className="p-8 text-center text-red-600 bg-red-50 rounded-2xl border border-red-100">
+        <AlertCircle className="w-10 h-10 mx-auto mb-4" />
+        <h2 className="text-xl font-bold mb-2">Erreur de chargement</h2>
+        <p>{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-32 animate-in fade-in duration-500">

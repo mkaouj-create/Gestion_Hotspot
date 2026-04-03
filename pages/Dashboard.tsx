@@ -60,8 +60,8 @@ const Dashboard: React.FC = () => {
       let soldQuery = db.from('tickets').select('*', { count: 'exact', head: true });
       let revQuery = db.from('sales_history').select('amount_paid, tickets(cost_price)');
       let userQuery = db.from('users').select('*', { count: 'exact', head: true });
-      let activitySalesQuery = db.from('sales_history').select('*, tickets(username), users(full_name)').limit(8).order('sold_at', { ascending: false });
-      let activityPaymentsQuery = db.from('payments').select('*, users(full_name)').limit(8).order('created_at', { ascending: false });
+      let activitySalesQuery = db.from('sales_history').select('*, tickets(username), users!seller_id(full_name)').limit(8).order('sold_at', { ascending: false });
+      let activityPaymentsQuery = db.from('payments').select('*, users!reseller_id(full_name)').limit(8).order('created_at', { ascending: false });
       let pendingPayQuery = db.from('payments').select('amount').eq('status', 'PENDING');
       let lowStockQuery = db.from('ticket_profiles').select('name, low_stock_threshold, tickets(count)');
 

@@ -63,7 +63,7 @@ const Stock: React.FC = () => {
     try {
       setLoading(true);
       let query = db.from('tickets')
-        .select(`id, username, password, status, imported_at, assigned_to, tenants(name), ticket_profiles(name, price), users!tickets_assigned_to_fkey(full_name)`)
+        .select(`id, username, password, status, imported_at, assigned_to, tenants(name), ticket_profiles(name, price), users!assigned_to(full_name)`)
         .order('imported_at', { ascending: false });
       
       const isReseller = currentUser.role === UserRole.REVENDEUR;
