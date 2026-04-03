@@ -11,7 +11,7 @@ select
   'VENTE' as entry_type,
   s.amount_paid as amount,
   'Vente ticket: ' || coalesce(t.username, 'ID#' || s.ticket_id) as description,
-  coalesce(u.full_name, 'Utilisateur supprimé') as party_name,
+  coalesce(u.full_name, s.metadata->>'guichet_name', 'Utilisateur supprimé') as party_name,
   'CASH' as method,
   'APPROVED' as status,
   s.tenant_id as tenant_id,

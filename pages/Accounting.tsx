@@ -22,24 +22,78 @@ const Accounting: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      let query = db.from('accounting_ledger').select('*');
+      let salesQuery = db.from('sales_history').select('*, tickets(username), users(full_name)');
+      let paymentsQuery = db.from('payments').select('*, users(full_name)');
 
       if (currentUser.role === UserRole.REVENDEUR) {
-        query = query.eq('user_id', currentUser.id);
+        salesQuery = salesQuery.eq('seller_id', currentUser.id);
+        paymentsQuery = paymentsQuery.eq('reseller_id', currentUser.id);
       } else if (currentUser.role !== UserRole.ADMIN_GLOBAL) {
-        query = query.eq('tenant_id', currentUser.tenant_id);
+        salesQuery = salesQuery.eq('tenant_id', currentUser.tenant_id);
+        paymentsQuery = paymentsQuery.eq('tenant_id', currentUser.tenant_id);
       }
 
-      if (searchTerm) query = query.ilike('party_name', `%${searchTerm}%`);
-      if (typeFilter !== 'ALL') query = query.eq('entry_type', typeFilter);
-      if (dateStart) query = query.gte('entry_date', `${dateStart}T00:00:00`);
-      if (dateEnd) query = query.lte('entry_date', `${dateEnd}T23:59:59`);
+      if (dateStart) {
+        salesQuery = salesQuery.gte('sold_at', `${dateStart}T00:00:00`);
+        paymentsQuery = paymentsQuery.gte('created_at', `${dateStart}T00:00:00`);
+      }
+      if (dateEnd) {
+        salesQuery = salesQuery.lte('sold_at', `${dateEnd}T23:59:59`);
+        paymentsQuery = paymentsQuery.lte('created_at', `${dateEnd}T23:59:59`);
+      }
 
-      const { data, error: dbError } = await query.order('entry_date', { ascending: false }).limit(1000);
+      const [salesRes, paymentsRes] = await Promise.all([
+        salesQuery.order('sold_at', { ascending: false }).limit(1000),
+        paymentsQuery.order('created_at', { ascending: false }).limit(1000)
+      ]);
       
-      if (dbError) throw dbError;
+      if (salesRes.error) throw salesRes.error;
+      if (paymentsRes.error) throw paymentsRes.error;
 
-      const entries = (data || []) as LedgerEntry[];
+      let combined: LedgerEntry[] = [];
+
+      if (typeFilter === 'ALL' || typeFilter === 'VENTE') {
+        const salesEntries = (salesRes.data || []).map(s => ({
+          id: s.id,
+          entry_date: s.sold_at,
+          entry_type: 'VENTE' as const,
+          amount: s.amount_paid,
+          description: `Vente ticket: ${s.tickets?.username || 'ID#' + s.ticket_id}`,
+          party_name: s.users?.full_name || s.metadata?.guichet_name || 'Utilisateur supprimé',
+          method: 'CASH',
+          status: 'APPROVED',
+          tenant_id: s.tenant_id,
+          reference: s.tickets?.username || s.ticket_id,
+          user_id: s.seller_id
+        }));
+        combined = [...combined, ...salesEntries];
+      }
+
+      if (typeFilter === 'ALL' || typeFilter === 'VERSEMENT') {
+        const paymentEntries = (paymentsRes.data || []).map(p => ({
+          id: p.id,
+          entry_date: p.created_at,
+          entry_type: 'VERSEMENT' as const,
+          amount: p.amount,
+          description: 'Versement revendeur',
+          party_name: p.users?.full_name || 'Utilisateur supprimé',
+          method: p.payment_method,
+          status: p.status,
+          tenant_id: p.tenant_id,
+          reference: p.phone_number,
+          user_id: p.reseller_id
+        }));
+        combined = [...combined, ...paymentEntries];
+      }
+
+      if (searchTerm) {
+        const lowerTerm = searchTerm.toLowerCase();
+        combined = combined.filter(e => e.party_name.toLowerCase().includes(lowerTerm));
+      }
+
+      combined.sort((a, b) => new Date(b.entry_date).getTime() - new Date(a.entry_date).getTime());
+      
+      const entries = combined.slice(0, 1000);
       setLedger(entries);
 
       const revenue = entries.filter(e => e.entry_type === 'VENTE').reduce((acc, curr) => acc + Number(curr.amount), 0);

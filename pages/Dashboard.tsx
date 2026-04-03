@@ -60,7 +60,8 @@ const Dashboard: React.FC = () => {
       let soldQuery = db.from('tickets').select('*', { count: 'exact', head: true });
       let revQuery = db.from('sales_history').select('amount_paid, tickets(cost_price)');
       let userQuery = db.from('users').select('*', { count: 'exact', head: true });
-      let activityQuery = db.from('accounting_ledger').select('*').limit(8).order('entry_date', { ascending: false });
+      let activitySalesQuery = db.from('sales_history').select('*, tickets(username), users(full_name)').limit(8).order('sold_at', { ascending: false });
+      let activityPaymentsQuery = db.from('payments').select('*, users(full_name)').limit(8).order('created_at', { ascending: false });
       let pendingPayQuery = db.from('payments').select('amount').eq('status', 'PENDING');
       let lowStockQuery = db.from('ticket_profiles').select('name, low_stock_threshold, tickets(count)');
 
@@ -70,19 +71,21 @@ const Dashboard: React.FC = () => {
         stockQuery = stockQuery.eq('assigned_to', user.id).eq('status', TicketStatus.ASSIGNE);
         soldQuery = soldQuery.eq('sold_by', user.id).eq('status', TicketStatus.VENDU);
         revQuery = revQuery.eq('seller_id', user.id);
-        activityQuery = activityQuery.eq('user_id', user.id);
+        activitySalesQuery = activitySalesQuery.eq('seller_id', user.id);
+        activityPaymentsQuery = activityPaymentsQuery.eq('reseller_id', user.id);
         pendingPayQuery = pendingPayQuery.eq('reseller_id', user.id);
       } else {
         stockQuery = stockQuery.eq('tenant_id', tId).eq('status', TicketStatus.NEUF);
         soldQuery = soldQuery.eq('tenant_id', tId).eq('status', TicketStatus.VENDU);
         revQuery = revQuery.eq('tenant_id', tId);
         userQuery = userQuery.eq('tenant_id', tId);
-        activityQuery = activityQuery.eq('tenant_id', tId);
+        activitySalesQuery = activitySalesQuery.eq('tenant_id', tId);
+        activityPaymentsQuery = activityPaymentsQuery.eq('tenant_id', tId);
         pendingPayQuery = pendingPayQuery.eq('tenant_id', tId);
         lowStockQuery = lowStockQuery.eq('tenant_id', tId);
       }
 
-      const promises = [stockQuery, soldQuery, revQuery, userQuery, activityQuery, pendingPayQuery, lowStockQuery];
+      const promises = [stockQuery, soldQuery, revQuery, userQuery, activitySalesQuery, pendingPayQuery, lowStockQuery, activityPaymentsQuery];
 
       if (isAdminGlobal) {
         promises.push(db.from('tenants').select('*', { count: 'exact', head: true }).eq('subscription_status', 'EN_ATTENTE'));
@@ -116,7 +119,29 @@ const Dashboard: React.FC = () => {
         margin: totalRevenue - totalCost
       });
 
-      setRecentActivities(results[4].data || []);
+      const salesActivities = (results[4].data || []).map((s: any) => ({
+        id: s.id,
+        entry_date: s.sold_at,
+        entry_type: 'VENTE' as const,
+        amount: s.amount_paid,
+        description: `Vente ticket: ${s.tickets?.username || 'ID#' + s.ticket_id}`,
+        party_name: s.users?.full_name || s.metadata?.guichet_name || 'Utilisateur supprimé',
+      }));
+
+      const paymentActivities = (results[7].data || []).map((p: any) => ({
+        id: p.id,
+        entry_date: p.created_at,
+        entry_type: 'VERSEMENT' as const,
+        amount: p.amount,
+        description: 'Versement revendeur',
+        party_name: p.users?.full_name || 'Utilisateur supprimé',
+      }));
+
+      const combinedActivities = [...salesActivities, ...paymentActivities]
+        .sort((a, b) => new Date(b.entry_date).getTime() - new Date(a.entry_date).getTime())
+        .slice(0, 8);
+
+      setRecentActivities(combinedActivities);
 
     } catch (err) { 
       console.error("Dashboard Fetch Error:", err); 
