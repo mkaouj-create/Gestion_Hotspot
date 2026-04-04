@@ -454,9 +454,11 @@ const History: React.FC = () => {
                                               </>
                                           ) : (
                                               <>
-                                                  <p className="text-xs font-black text-slate-800">{sale.users?.full_name || sale.metadata?.guichet_name || 'Inconnu'}</p>
+                                                  <p className="text-xs font-black text-slate-800">{sale.users?.full_name || (sale.metadata?.guichet_name ? `Guichet: ${sale.metadata.guichet_name}` : 'Opérateur Inconnu')}</p>
                                                   <p className="text-[9px] font-bold text-slate-400 uppercase">
-                                                      {sale.metadata?.source === 'guichet' ? 'Guichet' : 'Vendeur'}
+                                                      {sale.metadata?.source === 'guichet' 
+                                                        ? (sale.users?.full_name && sale.metadata?.guichet_name ? `Guichet: ${sale.metadata.guichet_name}` : 'Vente Guichet')
+                                                        : 'Vendeur Direct'}
                                                   </p>
                                               </>
                                           )}

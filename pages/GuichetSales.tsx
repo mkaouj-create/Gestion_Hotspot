@@ -25,7 +25,7 @@ export default function GuichetSales() {
   const [selling, setSelling] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastSoldTicket, setLastSoldTicket] = useState<any>(null);
-  const [guichetInfo, setGuichetInfo] = useState<{tenant_id: string, guichet_id: string, name: string, allowed_profiles?: string[]} | null>(null);
+  const [guichetInfo, setGuichetInfo] = useState<{tenant_id: string, guichet_id: string, name: string, allowed_profiles?: string[], reseller_id?: string} | null>(null);
   const [showHistory, setShowHistory] = useState(false);
 
   // Initialize custom client
@@ -107,13 +107,13 @@ export default function GuichetSales() {
           )
         `)
         .eq('tenant_id', tenantId)
-        .contains('metadata', { source: 'guichet' })
-        .order('sold_at', { ascending: false })
-        .limit(20);
+        .contains('metadata', { source: 'guichet' });
 
       if (guichetId) {
         query = query.contains('metadata', { guichet_id: guichetId });
       }
+
+      query = query.order('sold_at', { ascending: false }).limit(20);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -242,6 +242,7 @@ export default function GuichetSales() {
         .insert({
           ticket_id: ticket.id,
           tenant_id: tenantId,
+          seller_id: guichetInfo?.reseller_id || null,
           amount_paid: selectedProfile.price,
           metadata: {
             customer_phone: customerPhone || null,
