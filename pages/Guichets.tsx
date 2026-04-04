@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Store, Key, Trash2, Plus, Copy, Check, AlertCircle, Loader2, TrendingUp, Ticket, QrCode, X } from 'lucide-react';
+import { Store, Key, Trash2, Plus, Copy, Check, AlertCircle, Loader2, TrendingUp, Ticket, QrCode, X, Calendar, ChevronRight, History } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { db } from '../services/db';
 import { UserRole } from '../types';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { format, subDays, startOfDay, endOfDay, isWithinInterval, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 export default function Guichets() {
   const [codes, setCodes] = useState<any[]>([]);
@@ -12,7 +15,14 @@ export default function Guichets() {
     month: { count: 0, revenue: 0 },
     total: { count: 0, revenue: 0 }
   });
-  const [guichetStats, setGuichetStats] = useState<Record<string, { todayCount: number, todayRevenue: number, totalCount: number, totalRevenue: number }>>({});
+  const [guichetStats, setGuichetStats] = useState<Record<string, { 
+    todayCount: number, 
+    todayRevenue: number, 
+    totalCount: number, 
+    totalRevenue: number, 
+    uncollectedRevenue: number,
+    weeklyTrend: any[]
+  }>>({});
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   
@@ -135,16 +145,29 @@ export default function Guichets() {
         total: { count: 0, revenue: 0 }
       };
 
-      let gStats: Record<string, { todayCount: number, todayRevenue: number, totalCount: number, totalRevenue: number, uncollectedRevenue: number }> = {};
+      let gStats: Record<string, { todayCount: number, todayRevenue: number, totalCount: number, totalRevenue: number, uncollectedRevenue: number, weeklyTrend: any[] }> = {};
 
-      // Initialize gStats with codes
+      // Initialize gStats with codes and empty trend
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const d = subDays(new Date(), i);
+        return format(d, 'yyyy-MM-dd');
+      }).reverse();
+
       codesData?.forEach(code => {
-        gStats[code.id] = { todayCount: 0, todayRevenue: 0, totalCount: 0, totalRevenue: 0, uncollectedRevenue: 0 };
+        gStats[code.id] = { 
+          todayCount: 0, 
+          todayRevenue: 0, 
+          totalCount: 0, 
+          totalRevenue: 0, 
+          uncollectedRevenue: 0,
+          weeklyTrend: last7Days.map(date => ({ date, revenue: 0, count: 0 }))
+        };
       });
 
       salesData?.forEach(sale => {
         const amount = sale.amount_paid || 0;
         const soldAt = new Date(sale.sold_at);
+        const soldAtStr = format(soldAt, 'yyyy-MM-dd');
         const gId = sale.metadata?.guichet_id;
 
         // Global stats
@@ -168,9 +191,17 @@ export default function Guichets() {
         if (gId && gStats[gId]) {
           gStats[gId].totalCount++;
           gStats[gId].totalRevenue += amount;
+          
           if (soldAt >= today) {
             gStats[gId].todayCount++;
             gStats[gId].todayRevenue += amount;
+          }
+          
+          // Update trend
+          const trendDay = gStats[gId].weeklyTrend.find(t => t.date === soldAtStr);
+          if (trendDay) {
+            trendDay.revenue += amount;
+            trendDay.count++;
           }
           
           // Uncollected revenue
@@ -455,61 +486,74 @@ export default function Guichets() {
         {codes.map((code) => {
           const stats = guichetStats[code.id] || { todayCount: 0, todayRevenue: 0, totalCount: 0, totalRevenue: 0 };
           return (
-          <div key={code.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col relative overflow-hidden group">
+          <div key={code.id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col relative overflow-hidden group hover:shadow-xl transition-all">
             <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-10 transition-all scale-150 rotate-12 pointer-events-none">
               <Store className="w-24 h-24 text-brand-600 fill-current" />
             </div>
             
-            <div className="relative z-10 flex-1">
-              <div className="flex justify-between items-start mb-4">
+            <div className="p-6 relative z-10 flex-1">
+              <div className="flex justify-between items-start mb-6">
                 <div>
                   <h3 className="text-xl font-black text-slate-900 tracking-tight">{code.name}</h3>
                   {currentUser?.role === UserRole.ADMIN_GLOBAL && code.tenants && (
-                    <p className="text-xs font-bold text-brand-600 uppercase tracking-widest mt-1">
+                    <p className="text-[10px] font-black text-brand-600 uppercase tracking-widest mt-1">
                       {code.tenants.name}
                     </p>
                   )}
                 </div>
-                <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center">
-                  <Key className="w-5 h-5 text-slate-400" />
+                <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center shadow-inner">
+                  <Key className="w-6 h-6 text-slate-400" />
                 </div>
               </div>
 
-              <div className="space-y-3 mb-6 bg-slate-50 rounded-2xl p-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-500">Caisse à collecter</span>
-                  <div className="text-right">
-                    <span className="text-sm font-black text-brand-600">{stats.uncollectedRevenue.toLocaleString()} GNF</span>
-                  </div>
+              {/* Mini Trend Chart */}
+              <div className="h-24 w-full mb-6">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={stats.weeklyTrend}>
+                    <defs>
+                      <linearGradient id={`colorRev-${code.id}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill={`url(#colorRev-${code.id})`} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '0.75rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 'bold' }}
+                      labelFormatter={(label) => format(parseISO(label), 'dd MMM', { locale: fr })}
+                      formatter={(value: any) => [`${value.toLocaleString()} GNF`, 'Recette']}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                <div className="bg-slate-50 rounded-2xl p-3">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Aujourd'hui</p>
+                  <p className="text-sm font-black text-slate-900">{stats.todayRevenue.toLocaleString()} <span className="text-[10px] text-slate-500">GNF</span></p>
                 </div>
-                <div className="h-px bg-slate-200"></div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-500">Aujourd'hui</span>
-                  <div className="text-right">
-                    <span className="text-sm font-black text-emerald-600">{stats.todayRevenue.toLocaleString()} GNF</span>
-                    <span className="text-[10px] text-slate-400 block">{stats.todayCount} tickets</span>
-                  </div>
-                </div>
-                <div className="h-px bg-slate-200"></div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-500">Total</span>
-                  <div className="text-right">
-                    <span className="text-sm font-black text-slate-700">{stats.totalRevenue.toLocaleString()} GNF</span>
-                    <span className="text-[10px] text-slate-400 block">{stats.totalCount} tickets</span>
-                  </div>
+                <div className="bg-emerald-50 rounded-2xl p-3">
+                  <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">À Collecter</p>
+                  <p className="text-sm font-black text-emerald-600">{stats.uncollectedRevenue.toLocaleString()} <span className="text-[10px] text-emerald-500">GNF</span></p>
                 </div>
               </div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">
-                Créé le {new Date(code.created_at).toLocaleDateString('fr-FR')}
-              </p>
+
+              <div className="space-y-2 mb-6">
+                <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  <span>Total Ventes</span>
+                  <span className="text-slate-900">{stats.totalCount} tickets</span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-brand-500 rounded-full" style={{ width: `${Math.min((stats.totalCount / 100) * 100, 100)}%` }}></div>
+                </div>
+              </div>
             </div>
 
-            <div className="relative z-10 flex flex-col gap-2 mt-4 pt-4 border-t border-slate-100">
+            <div className="p-6 pt-0 relative z-10 flex flex-col gap-2">
               {stats.uncollectedRevenue > 0 && (
                 <button
                   onClick={() => handleCollectCash(code.id, stats.uncollectedRevenue)}
                   disabled={processing}
-                  className="w-full h-10 bg-brand-50 text-brand-600 rounded-xl font-bold text-xs hover:bg-brand-100 transition-colors flex items-center justify-center gap-2"
+                  className="w-full h-12 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand-500 hover:shadow-lg hover:shadow-brand-500/30 transition-all flex items-center justify-center gap-2"
                 >
                   <TrendingUp className="w-4 h-4" /> Collecter la caisse
                 </button>
@@ -517,7 +561,7 @@ export default function Guichets() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => copyLink(code.id, code.tenant_id)}
-                  className="flex-1 h-10 bg-slate-50 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 h-12 bg-slate-50 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"
                 >
                   {copiedId === code.id ? (
                     <><Check className="w-4 h-4 text-emerald-500" /> Copié</>
@@ -527,17 +571,17 @@ export default function Guichets() {
                 </button>
                 <button
                   onClick={() => setShowQrModal(code.id)}
-                  className="w-10 h-10 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-colors"
+                  className="w-12 h-12 bg-slate-50 text-slate-600 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition-colors"
                   title="Afficher le QR Code"
                 >
-                  <QrCode className="w-4 h-4" />
+                  <QrCode className="w-5 h-5" />
                 </button>
                 <button
                   onClick={() => fetchHistory(code.id)}
-                  className="w-10 h-10 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-colors"
+                  className="w-12 h-12 bg-slate-50 text-slate-600 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition-colors"
                   title="Historique des versements"
                 >
-                  <TrendingUp className="w-4 h-4" />
+                  <History className="w-5 h-5" />
                 </button>
                 <button
                   onClick={() => {
@@ -546,17 +590,17 @@ export default function Guichets() {
                     setSelectedReseller(code.reseller_id || '');
                     setSelectedProfiles(code.allowed_profiles || []);
                   }}
-                  className="w-10 h-10 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-colors"
+                  className="w-12 h-12 bg-slate-50 text-slate-600 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition-colors"
                   title="Modifier le guichet"
                 >
-                  <Key className="w-4 h-4" />
+                  <Key className="w-5 h-5" />
                 </button>
                 <button
                   onClick={() => handleDelete(code.id, code.tenant_id)}
-                  className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-100 transition-colors"
+                  className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-100 transition-colors"
                   title="Supprimer ce guichet"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-5 h-5" />
                 </button>
               </div>
             </div>

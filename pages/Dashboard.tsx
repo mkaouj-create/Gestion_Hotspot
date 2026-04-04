@@ -4,11 +4,15 @@ import {
   Users as UsersIcon, Ticket, Wallet, ShoppingCart, Loader2, RefreshCcw, 
   TrendingUp, ArrowUpRight, ShieldCheck, Building2, Clock, Activity, 
   Globe, MapPin, X, AlertCircle, Smartphone, CheckCircle2, History, 
-  Banknote, ArrowDownRight, Zap, ArrowDownLeft, Landmark, AlertTriangle
+  Banknote, ArrowDownRight, Zap, ArrowDownLeft, Landmark, AlertTriangle,
+  Store, User
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
 import { UserRole, TicketStatus } from '../types';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { format, subDays, startOfDay, endOfDay, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -25,6 +29,8 @@ const Dashboard: React.FC = () => {
     pendingPayments: 0,
     margin: 0 // Nouveau : Bénéfice net estimé
   });
+  const [weeklyData, setWeeklyData] = useState<any[]>([]);
+  const [sourceData, setSourceData] = useState<any[]>([]);
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
   const [lowStockProfiles, setLowStockProfiles] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -98,6 +104,40 @@ const Dashboard: React.FC = () => {
       const totalRevenue = revenueData.reduce((acc: number, curr: any) => acc + Number(curr.amount_paid), 0);
       const totalCost = revenueData.reduce((acc: number, curr: any) => acc + Number((curr.tickets as any)?.cost_price || 0), 0);
       const pendingAmt = (results[5].data || []).reduce((acc: number, curr: any) => acc + Number(curr.amount), 0);
+      
+      // Process Weekly and Source Data
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const d = subDays(new Date(), i);
+        return format(d, 'yyyy-MM-dd');
+      }).reverse();
+
+      const weeklyMap: Record<string, number> = {};
+      last7Days.forEach(day => weeklyMap[day] = 0);
+
+      let guichetSales = 0;
+      let directSales = 0;
+
+      revenueData.forEach((sale: any) => {
+        const day = format(new Date(sale.sold_at), 'yyyy-MM-dd');
+        if (weeklyMap[day] !== undefined) {
+          weeklyMap[day] += Number(sale.amount_paid);
+        }
+        if (sale.metadata?.source === 'guichet') {
+          guichetSales += Number(sale.amount_paid);
+        } else {
+          directSales += Number(sale.amount_paid);
+        }
+      });
+
+      setWeeklyData(last7Days.map(date => ({
+        date: format(parseISO(date), 'dd MMM', { locale: fr }),
+        revenue: weeklyMap[date]
+      })));
+
+      setSourceData([
+        { name: 'Guichets', value: guichetSales, color: '#6366f1' },
+        { name: 'Vendeurs', value: directSales, color: '#10b981' }
+      ]);
       
       // Filtrage des stocks bas
       const lowStocks = (results[6].data || []).filter((p: any) => {
@@ -290,6 +330,89 @@ const Dashboard: React.FC = () => {
           onClick={() => navigate('/stock')}
         />
       </div>
+
+      {/* CHARTS SECTION */}
+      {!isReseller && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-white p-6 md:p-10 rounded-[3rem] border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-indigo-500" />
+                Performance 7 Jours
+              </h3>
+            </div>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={weeklyData}>
+                  <defs>
+                    <linearGradient id="colorRevDash" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="date" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}}
+                  />
+                  <YAxis hide />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold' }}
+                    formatter={(value: any) => [`${value.toLocaleString()} GNF`, 'Recette']}
+                  />
+                  <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={4} fillOpacity={1} fill="url(#colorRevDash)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 md:p-10 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col">
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2 mb-8">
+              <Activity className="w-5 h-5 text-emerald-500" />
+              Sources de Vente
+            </h3>
+            <div className="flex-1 flex items-center justify-center relative">
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={sourceData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {sourceData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</p>
+                <p className="text-xl font-black text-slate-900">{stats.revenue.toLocaleString()}</p>
+              </div>
+            </div>
+            <div className="space-y-3 mt-6">
+              {sourceData.map((item, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+                    <span className="text-xs font-bold text-slate-600">{item.name}</span>
+                  </div>
+                  <span className="text-xs font-black text-slate-900">
+                    {stats.revenue > 0 ? Math.round((item.value / stats.revenue) * 100) : 0}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* FOOTER DASHBOARD */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">

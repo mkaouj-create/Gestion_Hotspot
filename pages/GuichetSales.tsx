@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { LogOut, Zap, Search, Wifi, Clock, CheckCircle2, X, AlertCircle, TrendingUp, Ticket } from 'lucide-react';
+import { LogOut, Zap, Search, Wifi, Clock, CheckCircle2, X, AlertCircle, TrendingUp, Ticket, History, ChevronRight, Printer, Phone, QrCode } from 'lucide-react';
 import { createGuichetClient } from '../services/db';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { format, startOfDay, endOfDay, eachHourOfInterval, isWithinInterval, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 export default function GuichetSales() {
   const [searchParams] = useSearchParams();
@@ -10,6 +13,8 @@ export default function GuichetSales() {
 
   const [profiles, setProfiles] = useState<any[]>([]);
   const [dailyStats, setDailyStats] = useState({ count: 0, revenue: 0 });
+  const [recentSales, setRecentSales] = useState<any[]>([]);
+  const [hourlyData, setHourlyData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,6 +26,7 @@ export default function GuichetSales() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastSoldTicket, setLastSoldTicket] = useState<any>(null);
   const [guichetInfo, setGuichetInfo] = useState<{tenant_id: string, guichet_id: string, name: string, allowed_profiles?: string[]} | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Initialize custom client
   const token = localStorage.getItem('guichet_token');
@@ -200,6 +206,7 @@ export default function GuichetSales() {
       // Refresh profiles and stats
       fetchProfiles(guichetInfo?.allowed_profiles);
       fetchDailyStats(guichetInfo?.guichet_id);
+      fetchRecentSales(guichetInfo?.guichet_id);
 
     } catch (err: any) {
       console.error('Sale error:', err);
@@ -249,7 +256,7 @@ export default function GuichetSales() {
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* Daily Stats Banner */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
             <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center shrink-0">
               <TrendingUp className="w-6 h-6 text-emerald-600" />
@@ -268,17 +275,106 @@ export default function GuichetSales() {
               <p className="text-lg sm:text-xl font-black text-slate-900 leading-none">{dailyStats.count}</p>
             </div>
           </div>
+          <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center shrink-0">
+              <Clock className="w-6 h-6 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Dernière vente</p>
+              <p className="text-sm font-black text-slate-900 leading-none">
+                {recentSales.length > 0 ? format(parseISO(recentSales[0].sold_at), 'HH:mm') : '--:--'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Charts and Recent Activity */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-500" />
+                Tendance horaire
+              </h3>
+            </div>
+            <div className="h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={hourlyData}>
+                  <defs>
+                    <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="time" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}}
+                    interval={3}
+                  />
+                  <YAxis hide />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold' }}
+                    formatter={(value: any) => [`${value.toLocaleString()} GNF`, 'Recette']}
+                  />
+                  <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                <History className="w-4 h-4 text-blue-500" />
+                Ventes récentes
+              </h3>
+              <button 
+                onClick={() => setShowHistory(!showHistory)}
+                className="text-[10px] font-black text-brand-600 uppercase tracking-widest hover:underline"
+              >
+                {showHistory ? 'Masquer' : 'Voir tout'}
+              </button>
+            </div>
+            <div className="space-y-3">
+              {recentSales.length > 0 ? (
+                recentSales.slice(0, showHistory ? 10 : 3).map((sale) => (
+                  <div key={sale.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100 group hover:bg-white hover:shadow-md transition-all">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                        <Ticket className="w-5 h-5 text-slate-400 group-hover:text-brand-500 transition-colors" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-900 tracking-tight">{sale.tickets?.username}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          {format(parseISO(sale.sold_at), 'HH:mm')} • {sale.tickets?.ticket_profiles?.name}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-black text-slate-900">{sale.amount_paid.toLocaleString()} GNF</p>
+                      <span className="text-[8px] font-black text-emerald-600 uppercase bg-emerald-50 px-1.5 py-0.5 rounded-md">Vendu</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-slate-400 text-center py-4">Aucune vente aujourd'hui</p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+        <div className="relative group">
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-brand-500 transition-colors" />
           <input
             type="text"
-            placeholder="Rechercher un forfait..."
+            placeholder="Rechercher un forfait par nom ou prix..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border-2 border-slate-100 rounded-2xl text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all shadow-sm"
+            className="w-full pl-14 pr-6 py-5 bg-white border-2 border-slate-100 rounded-[2rem] text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:ring-8 focus:ring-brand-500/5 transition-all shadow-sm"
           />
         </div>
 
@@ -290,53 +386,59 @@ export default function GuichetSales() {
         )}
 
         {/* Profiles Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {loading ? (
             <div className="col-span-full py-12 text-center">
-              <div className="w-8 h-8 border-4 border-brand-500/20 border-t-brand-500 rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Chargement des forfaits...</p>
+              <div className="w-10 h-10 border-4 border-brand-500/20 border-t-brand-500 rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Chargement des forfaits...</p>
             </div>
           ) : filteredProfiles.length > 0 ? (
             filteredProfiles.map(profile => (
-              <div key={profile.id} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-10 transition-all scale-150 rotate-12 pointer-events-none">
+              <div key={profile.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-xl hover:shadow-brand-500/5 transition-all">
+                <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-10 transition-all scale-150 rotate-12 pointer-events-none">
                   <Zap className="w-32 h-32 text-brand-600 fill-current" />
                 </div>
                 
-                <div className="relative z-10 mb-6">
+                <div className="relative z-10 mb-8">
                   <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-xl font-black text-slate-900 tracking-tight">{profile.name}</h3>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-600 text-xs font-black uppercase tracking-widest">
-                      {profile.available_count} dispo
+                    <div>
+                      <h3 className="text-2xl font-black text-slate-900 tracking-tight leading-tight mb-1">{profile.name}</h3>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Forfait Internet</p>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-widest">
+                      {profile.available_count} en stock
                     </span>
                   </div>
                   
                   <div className="flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 text-slate-600 text-xs font-bold">
-                      <Ticket className="w-3.5 h-3.5" />
-                      Forfait Internet
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 text-slate-600 text-[10px] font-black uppercase tracking-widest">
+                      <Wifi className="w-3.5 h-3.5" />
+                      Connexion Rapide
                     </span>
                   </div>
                 </div>
 
-                <div className="relative z-10 flex items-center justify-between mt-auto pt-4 border-t border-slate-100">
+                <div className="relative z-10 flex items-center justify-between mt-auto pt-6 border-t border-slate-50">
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Prix de vente</p>
-                    <p className="text-2xl font-black text-brand-600">{profile.price.toLocaleString()} <span className="text-sm">GNF</span></p>
+                    <p className="text-3xl font-black text-brand-600 tracking-tighter">{profile.price.toLocaleString()} <span className="text-sm">GNF</span></p>
                   </div>
                   <button
                     onClick={() => handleSellClick(profile)}
-                    className="h-12 px-6 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-brand-500 hover:shadow-lg hover:shadow-brand-500/30 hover:-translate-y-0.5 transition-all active:scale-95 flex items-center gap-2"
+                    className="h-14 px-8 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-brand-500 hover:shadow-xl hover:shadow-brand-500/30 hover:-translate-y-1 transition-all active:scale-95 flex items-center gap-2"
                   >
-                    Vendre
+                    Vendre <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             ))
           ) : (
-            <div className="col-span-full py-12 text-center bg-white rounded-3xl border border-slate-100 border-dashed">
-              <AlertCircle className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-              <p className="text-slate-500 font-medium">Aucun forfait disponible en stock.</p>
+            <div className="col-span-full py-16 text-center bg-white rounded-[3rem] border-2 border-slate-100 border-dashed">
+              <div className="w-20 h-20 bg-slate-50 rounded-[2rem] flex items-center justify-center mx-auto mb-6">
+                <AlertCircle className="w-10 h-10 text-slate-300" />
+              </div>
+              <p className="text-slate-900 font-black text-lg tracking-tight mb-1">Aucun forfait trouvé</p>
+              <p className="text-slate-400 text-sm font-medium">Réessayez avec un autre terme de recherche.</p>
             </div>
           )}
         </div>

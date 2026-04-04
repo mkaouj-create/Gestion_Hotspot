@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/db';
-import { History as HistoryIcon, Search, Loader2, Info, X, QrCode, Share2, RefreshCcw, RotateCcw, AlertTriangle, CheckCircle2, Building2, Calendar, AlertCircle, Printer, Filter, User, Tag, CalendarRange, Wallet, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { History as HistoryIcon, Search, Loader2, Info, X, QrCode, Share2, RefreshCcw, RotateCcw, AlertTriangle, CheckCircle2, Building2, Calendar, AlertCircle, Printer, Filter, User, Tag, CalendarRange, Wallet, ArrowDownLeft, ArrowUpRight, Store } from 'lucide-react';
 import { UserRole, Sale } from '../types';
 
 const History: React.FC = () => {
@@ -20,12 +20,14 @@ const History: React.FC = () => {
   const [dateEnd, setDateEnd] = useState('');
   const [sellerFilter, setSellerFilter] = useState('ALL');
   const [profileFilter, setProfileFilter] = useState('ALL');
+  const [guichetFilter, setGuichetFilter] = useState('ALL');
   const [showFilters, setShowFilters] = useState(false);
 
   // Listes pour les dropdowns
   const [agencies, setAgencies] = useState<any[]>([]);
   const [sellersList, setSellersList] = useState<any[]>([]);
   const [profilesList, setProfilesList] = useState<any[]>([]);
+  const [guichetsList, setGuichetsList] = useState<any[]>([]);
 
   const [stats, setStats] = useState({ totalCount: 0, totalRevenue: 0 });
   const [toast, setToast] = useState<{ type: 'success' | 'error', message: string } | null>(null);
@@ -45,7 +47,7 @@ const History: React.FC = () => {
           if (historyType === 'SALES') fetchSalesHistory();
           else fetchPaymentsHistory();
       }
-  }, [agencyFilter, searchTerm, currentUser, dateStart, dateEnd, sellerFilter, profileFilter, historyType]);
+  }, [agencyFilter, searchTerm, currentUser, dateStart, dateEnd, sellerFilter, profileFilter, guichetFilter, historyType]);
 
   // Rechargement des listes déroulantes (Vendeurs/Forfaits) quand l'agence change (pour Global Admin)
   useEffect(() => {
@@ -92,6 +94,11 @@ const History: React.FC = () => {
           const { data: profilesData } = await profileQuery.order('name');
           setProfilesList(profilesData || []);
 
+          let guichetQuery = db.from('sales_access_codes').select('id, name');
+          if (targetTenantId) guichetQuery = guichetQuery.eq('tenant_id', targetTenantId);
+          const { data: guichetsData } = await guichetQuery.order('name');
+          setGuichetsList(guichetsData || []);
+
       } catch (err) { console.error("Erreur chargement filtres", err); }
   };
 
@@ -121,6 +128,7 @@ const History: React.FC = () => {
       if (dateEnd) query = query.lte('sold_at', `${dateEnd}T23:59:59`);
       if (sellerFilter !== 'ALL') query = query.eq('seller_id', sellerFilter);
       if (profileFilter !== 'ALL') query = query.eq('tickets.profile_id', profileFilter);
+      if (guichetFilter !== 'ALL') query = query.contains('metadata', { guichet_id: guichetFilter });
 
       const { data, error } = await query.order('sold_at', { ascending: false }).limit(100);
       
@@ -198,6 +206,7 @@ const History: React.FC = () => {
       setDateEnd('');
       setSellerFilter('ALL');
       setProfileFilter('ALL');
+      setGuichetFilter('ALL');
       if (currentUser?.role === UserRole.ADMIN_GLOBAL) setAgencyFilter('ALL');
   };
 
@@ -310,6 +319,15 @@ const History: React.FC = () => {
                               <select value={sellerFilter} onChange={(e) => setSellerFilter(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-2xl bg-slate-50 text-slate-600 font-bold text-xs uppercase appearance-none outline-none focus:ring-2 focus:ring-brand-100 transition-all cursor-pointer">
                                   <option value="ALL">Tous les {historyType === 'SALES' ? 'vendeurs' : 'revendeurs'}</option>
                                   {sellersList.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+                              </select>
+                          </div>
+                      )}
+                      {historyType === 'SALES' && (
+                          <div className="relative">
+                              <Store className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                              <select value={guichetFilter} onChange={(e) => setGuichetFilter(e.target.value)} className="w-full pl-12 pr-4 py-3 rounded-2xl bg-slate-50 text-slate-600 font-bold text-xs uppercase appearance-none outline-none focus:ring-2 focus:ring-brand-100 transition-all cursor-pointer">
+                                  <option value="ALL">Tous les guichets</option>
+                                  {guichetsList.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                               </select>
                           </div>
                       )}
@@ -436,8 +454,10 @@ const History: React.FC = () => {
                                               </>
                                           ) : (
                                               <>
-                                                  <p className="text-xs font-black text-slate-800">{sale.users?.full_name || 'Inconnu'}</p>
-                                                  <p className="text-[9px] font-bold text-slate-400 uppercase">Vendeur</p>
+                                                  <p className="text-xs font-black text-slate-800">{sale.users?.full_name || sale.metadata?.guichet_name || 'Inconnu'}</p>
+                                                  <p className="text-[9px] font-bold text-slate-400 uppercase">
+                                                      {sale.metadata?.source === 'guichet' ? 'Guichet' : 'Vendeur'}
+                                                  </p>
                                               </>
                                           )}
                                       </td>
