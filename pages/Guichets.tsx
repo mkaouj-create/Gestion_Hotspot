@@ -35,11 +35,9 @@ export default function Guichets() {
   const [newPin, setNewPin] = useState('');
   const [selectedTenant, setSelectedTenant] = useState('');
   const [selectedReseller, setSelectedReseller] = useState<string>('');
-  const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
   
   const [tenants, setTenants] = useState<any[]>([]);
   const [resellers, setResellers] = useState<any[]>([]);
-  const [profilesList, setProfilesList] = useState<any[]>([]);
   
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
@@ -60,29 +58,26 @@ export default function Guichets() {
   useEffect(() => {
     if (currentUser && currentUser.tenant_id) {
       fetchAllData();
-      fetchResellersAndProfiles();
+      fetchResellers();
       if (currentUser.role === UserRole.ADMIN_GLOBAL) {
         fetchTenants();
       }
     }
   }, [currentUser]);
 
-  const fetchResellersAndProfiles = async () => {
+  const fetchResellers = async () => {
     try {
       let usersQuery = db.from('users').select('id, full_name, email').eq('role', 'REVENDEUR');
-      let profilesQuery = db.from('ticket_profiles').select('id, name, price');
 
       if (currentUser.role !== UserRole.ADMIN_GLOBAL) {
         usersQuery = usersQuery.eq('tenant_id', currentUser.tenant_id);
-        profilesQuery = profilesQuery.eq('tenant_id', currentUser.tenant_id);
       }
 
-      const [usersRes, profilesRes] = await Promise.all([usersQuery, profilesQuery]);
+      const { data: usersData, error: usersError } = await usersQuery;
       
-      if (usersRes.data) setResellers(usersRes.data);
-      if (profilesRes.data) setProfilesList(profilesRes.data);
+      if (usersData) setResellers(usersData);
     } catch (err) {
-      console.error('Error fetching resellers/profiles:', err);
+      console.error('Error fetching resellers:', err);
     }
   };
 
@@ -244,8 +239,7 @@ export default function Guichets() {
         p_tenant_id: tenantIdToUse,
         p_name: newName.trim(),
         p_pin: newPin,
-        p_reseller_id: selectedReseller || null,
-        p_allowed_profiles: selectedProfiles.length > 0 ? selectedProfiles : null
+        p_reseller_id: selectedReseller || null
       });
 
       if (rpcError) throw rpcError;
@@ -254,7 +248,6 @@ export default function Guichets() {
       setNewName('');
       setNewPin('');
       setSelectedReseller('');
-      setSelectedProfiles([]);
       fetchAllData();
     } catch (err: any) {
       console.error('Erreur création guichet:', err);
@@ -278,8 +271,7 @@ export default function Guichets() {
       const { error: rpcError } = await db.rpc('update_guichet_code', {
         p_guichet_id: showEditModal.id,
         p_name: newName.trim(),
-        p_reseller_id: selectedReseller || null,
-        p_allowed_profiles: selectedProfiles.length > 0 ? selectedProfiles : null
+        p_reseller_id: selectedReseller || null
       });
 
       if (rpcError) throw rpcError;
@@ -287,7 +279,6 @@ export default function Guichets() {
       setShowEditModal(null);
       setNewName('');
       setSelectedReseller('');
-      setSelectedProfiles([]);
       fetchAllData();
     } catch (err: any) {
       console.error('Erreur modification guichet:', err);
@@ -588,7 +579,6 @@ export default function Guichets() {
                     setShowEditModal(code);
                     setNewName(code.name);
                     setSelectedReseller(code.reseller_id || '');
-                    setSelectedProfiles(code.allowed_profiles || []);
                   }}
                   className="w-12 h-12 bg-slate-50 text-slate-600 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition-colors"
                   title="Modifier le guichet"
@@ -697,39 +687,6 @@ export default function Guichets() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
-                  Forfaits Autorisés (Optionnel)
-                </label>
-                <div className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 max-h-40 overflow-y-auto space-y-2">
-                  {profilesList.length === 0 ? (
-                    <p className="text-xs text-slate-500 text-center py-2">Aucun forfait disponible.</p>
-                  ) : (
-                    profilesList.map(profile => (
-                      <label key={profile.id} className="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-xl cursor-pointer transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={selectedProfiles.includes(profile.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedProfiles([...selectedProfiles, profile.id]);
-                            } else {
-                              setSelectedProfiles(selectedProfiles.filter(id => id !== profile.id));
-                            }
-                          }}
-                          className="w-5 h-5 rounded-md border-slate-300 text-brand-500 focus:ring-brand-500"
-                        />
-                        <div className="flex-1">
-                          <p className="text-sm font-bold text-slate-900">{profile.name}</p>
-                          <p className="text-xs text-slate-500">{profile.price.toLocaleString()} GNF</p>
-                        </div>
-                      </label>
-                    ))
-                  )}
-                </div>
-                <p className="text-xs text-slate-400 mt-2">Si aucun n'est sélectionné, tous les forfaits seront disponibles.</p>
-              </div>
-
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
@@ -830,39 +787,6 @@ export default function Guichets() {
                     <option key={r.id} value={r.id}>{r.full_name || r.email}</option>
                   ))}
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
-                  Forfaits Autorisés (Optionnel)
-                </label>
-                <div className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 max-h-40 overflow-y-auto space-y-2">
-                  {profilesList.length === 0 ? (
-                    <p className="text-xs text-slate-500 text-center py-2">Aucun forfait disponible.</p>
-                  ) : (
-                    profilesList.map(profile => (
-                      <label key={profile.id} className="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-xl cursor-pointer transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={selectedProfiles.includes(profile.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedProfiles([...selectedProfiles, profile.id]);
-                            } else {
-                              setSelectedProfiles(selectedProfiles.filter(id => id !== profile.id));
-                            }
-                          }}
-                          className="w-5 h-5 rounded-md border-slate-300 text-brand-500 focus:ring-brand-500"
-                        />
-                        <div className="flex-1">
-                          <p className="text-sm font-bold text-slate-900">{profile.name}</p>
-                          <p className="text-xs text-slate-500">{profile.price.toLocaleString()} GNF</p>
-                        </div>
-                      </label>
-                    ))
-                  )}
-                </div>
-                <p className="text-xs text-slate-400 mt-2">Si aucun n'est sélectionné, tous les forfaits seront disponibles.</p>
               </div>
 
               <div className="flex gap-3 pt-4">

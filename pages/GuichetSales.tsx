@@ -46,9 +46,11 @@ export default function GuichetSales() {
         if (data && data.length > 0) {
           setGuichetInfo(data[0]);
           fetchDailyStats(data[0].guichet_id);
+          fetchRecentSales(data[0].guichet_id);
           fetchProfiles(data[0].allowed_profiles);
         } else {
           fetchDailyStats();
+          fetchRecentSales();
           fetchProfiles();
         }
       } catch (err) {
@@ -89,6 +91,61 @@ export default function GuichetSales() {
       setDailyStats({ count, revenue });
     } catch (err) {
       console.error('Error fetching daily stats:', err);
+    }
+  };
+
+  const fetchRecentSales = async (guichetId?: string) => {
+    try {
+      const guichetDb = createGuichetClient(token!);
+      let query = guichetDb
+        .from('sales_history')
+        .select(`
+          id, amount_paid, sold_at,
+          tickets (
+            username,
+            ticket_profiles (name)
+          )
+        `)
+        .eq('tenant_id', tenantId)
+        .contains('metadata', { source: 'guichet' })
+        .order('sold_at', { ascending: false })
+        .limit(20);
+
+      if (guichetId) {
+        query = query.contains('metadata', { guichet_id: guichetId });
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      setRecentSales(data || []);
+
+      // Prepare hourly data for chart
+      const today = startOfDay(new Date());
+      const hours = eachHourOfInterval({
+        start: today,
+        end: endOfDay(today)
+      });
+
+      const hourlyStats = hours.map(hour => {
+        const hourStr = format(hour, 'HH:mm');
+        const hourSales = data?.filter(sale => {
+          const soldAt = parseISO(sale.sold_at);
+          return isWithinInterval(soldAt, {
+            start: hour,
+            end: new Date(hour.getTime() + 60 * 60 * 1000 - 1)
+          });
+        }) || [];
+
+        return {
+          time: hourStr,
+          revenue: hourSales.reduce((sum, s) => sum + (s.amount_paid || 0), 0),
+          count: hourSales.length
+        };
+      });
+
+      setHourlyData(hourlyStats);
+    } catch (err) {
+      console.error('Error fetching recent sales:', err);
     }
   };
 

@@ -25,5 +25,11 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "test_anon_access.ts",
+    "test_guichet.ts",
+    "test_payments_query.ts",
+    "test_policies.ts"
+  ]
 }
