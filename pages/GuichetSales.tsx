@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LogOut, Zap, Search, Wifi, Clock, CheckCircle2, X, AlertCircle, TrendingUp, Ticket, History, ChevronRight, Printer, Phone, QrCode } from 'lucide-react';
 import { createGuichetClient } from '../services/db';
+import { TicketStatus } from '../types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, startOfDay, endOfDay, eachHourOfInterval, isWithinInterval, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -59,7 +60,7 @@ export default function GuichetSales() {
           await Promise.all([
             fetchDailyStats(info.guichet_id, effectiveTenantId),
             fetchRecentSales(info.guichet_id, effectiveTenantId),
-            fetchProfiles(info.allowed_profiles, effectiveTenantId)
+            fetchProfiles(info.allowed_profiles, effectiveTenantId, info.reseller_id)
           ]);
         } else {
           // No guichet info found, session might be invalid
@@ -91,7 +92,7 @@ export default function GuichetSales() {
       if (effectiveTenantId) {
         fetchDailyStats(guichetInfo.guichet_id, effectiveTenantId);
         fetchRecentSales(guichetInfo.guichet_id, effectiveTenantId);
-        fetchProfiles(guichetInfo.allowed_profiles, effectiveTenantId);
+        fetchProfiles(guichetInfo.allowed_profiles, effectiveTenantId, guichetInfo.reseller_id);
       }
     }, 30000);
 
@@ -190,13 +191,16 @@ export default function GuichetSales() {
     }
   };
 
-  const fetchProfiles = async (allowedProfiles?: string[], tId?: string) => {
+  const fetchProfiles = async (allowedProfiles?: string[], tId?: string, rId?: string) => {
     const activeTenantId = tId || tenantId || storedTenant;
     if (!activeTenantId || !token) return;
 
     try {
       setLoading(true);
       const guichetDb = createGuichetClient(token);
+
+      // We need to know if this guichet is linked to a reseller
+      const resellerId = rId || guichetInfo?.reseller_id;
 
       let query = guichetDb
         .from('ticket_profiles')
@@ -205,8 +209,19 @@ export default function GuichetSales() {
           tickets!inner(count)
         `)
         .eq('tenant_id', activeTenantId)
-        .in('tickets.status', ['NEUF', 'ASSIGNE'])
         .order('price', { ascending: true });
+
+      // Apply status and assignment filters to the tickets join
+      if (resellerId) {
+        // Reseller guichet: only count tickets assigned to this reseller
+        query = query
+          .eq('tickets.status', TicketStatus.ASSIGNE)
+          .eq('tickets.assigned_to', resellerId);
+      } else {
+        // Agency guichet: only count tickets in agency stock (NEUF)
+        query = query
+          .eq('tickets.status', TicketStatus.NEUF);
+      }
 
       // Apply filter if allowedProfiles is set and not empty
       if (allowedProfiles && allowedProfiles.length > 0) {
@@ -252,16 +267,27 @@ export default function GuichetSales() {
     setSelling(true);
     setError('');
     const guichetDb = createGuichetClient(token);
+    const resellerId = guichetInfo?.reseller_id;
 
     try {
       // 1. Get one available ticket
-      const { data: tickets, error: fetchError } = await guichetDb
+      let ticketQuery = guichetDb
         .from('tickets')
         .select('*')
         .eq('tenant_id', activeTenantId)
         .eq('profile_id', selectedProfile.id)
-        .in('status', ['NEUF', 'ASSIGNE'])
         .limit(1);
+
+      if (resellerId) {
+        ticketQuery = ticketQuery
+          .eq('status', TicketStatus.ASSIGNE)
+          .eq('assigned_to', resellerId);
+      } else {
+        ticketQuery = ticketQuery
+          .eq('status', TicketStatus.NEUF);
+      }
+
+      const { data: tickets, error: fetchError } = await ticketQuery;
 
       if (fetchError) throw fetchError;
       if (!tickets || tickets.length === 0) {
@@ -274,8 +300,15 @@ export default function GuichetSales() {
       const { error: updateError } = await guichetDb
         .from('tickets')
         .update({
-          status: 'VENDU',
-          sold_at: new Date().toISOString()
+          status: TicketStatus.VENDU,
+          sold_at: new Date().toISOString(),
+          metadata: {
+            ...(ticket.metadata || {}),
+            source: 'guichet',
+            sold_via: 'GUICHET',
+            guichet_id: guichetInfo?.guichet_id,
+            customer_phone: customerPhone || 'Client Anonyme'
+          }
         })
         .eq('id', ticket.id);
 
