@@ -38,6 +38,8 @@ export default function Guichets() {
   
   const [tenants, setTenants] = useState<any[]>([]);
   const [resellers, setResellers] = useState<any[]>([]);
+  const [allProfiles, setAllProfiles] = useState<any[]>([]);
+  const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
   
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
@@ -112,6 +114,19 @@ export default function Guichets() {
       if (codesError) throw codesError;
       
       setCodes(codesData || []);
+
+      // 1.5 Fetch All Profiles for selection
+      let profilesQuery = db
+        .from('ticket_profiles')
+        .select('id, name, price')
+        .order('price', { ascending: true });
+
+      if (currentUser.role !== UserRole.ADMIN_GLOBAL) {
+        profilesQuery = profilesQuery.eq('tenant_id', currentUser.tenant_id);
+      }
+
+      const { data: profilesData } = await profilesQuery;
+      setAllProfiles(profilesData || []);
 
       // 2. Fetch Sales
       let salesQuery = db
@@ -239,7 +254,8 @@ export default function Guichets() {
         p_tenant_id: tenantIdToUse,
         p_name: newName.trim(),
         p_pin: newPin,
-        p_reseller_id: selectedReseller || null
+        p_reseller_id: selectedReseller || null,
+        p_allowed_profiles: selectedProfiles.length > 0 ? selectedProfiles : null
       });
 
       if (rpcError) throw rpcError;
@@ -248,6 +264,7 @@ export default function Guichets() {
       setNewName('');
       setNewPin('');
       setSelectedReseller('');
+      setSelectedProfiles([]);
       fetchAllData();
     } catch (err: any) {
       console.error('Erreur création guichet:', err);
@@ -271,7 +288,8 @@ export default function Guichets() {
       const { error: rpcError } = await db.rpc('update_guichet_code', {
         p_guichet_id: showEditModal.id,
         p_name: newName.trim(),
-        p_reseller_id: selectedReseller || null
+        p_reseller_id: selectedReseller || null,
+        p_allowed_profiles: selectedProfiles.length > 0 ? selectedProfiles : null
       });
 
       if (rpcError) throw rpcError;
@@ -279,6 +297,7 @@ export default function Guichets() {
       setShowEditModal(null);
       setNewName('');
       setSelectedReseller('');
+      setSelectedProfiles([]);
       fetchAllData();
     } catch (err: any) {
       console.error('Erreur modification guichet:', err);
@@ -579,6 +598,7 @@ export default function Guichets() {
                     setShowEditModal(code);
                     setNewName(code.name);
                     setSelectedReseller(code.reseller_id || '');
+                    setSelectedProfiles(code.allowed_profiles || []);
                   }}
                   className="w-12 h-12 bg-slate-50 text-slate-600 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition-colors"
                   title="Modifier le guichet"
@@ -687,6 +707,34 @@ export default function Guichets() {
                 </select>
               </div>
 
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
+                  Forfaits Autorisés (Tous par défaut)
+                </label>
+                <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto p-2 bg-slate-50 rounded-2xl border-2 border-slate-100">
+                  {allProfiles.map(profile => (
+                    <label key={profile.id} className="flex items-center gap-3 p-2 hover:bg-white rounded-xl transition-colors cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={selectedProfiles.includes(profile.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedProfiles([...selectedProfiles, profile.id]);
+                          } else {
+                            setSelectedProfiles(selectedProfiles.filter(id => id !== profile.id));
+                          }
+                        }}
+                        className="w-5 h-5 rounded-lg border-2 border-slate-200 text-brand-500 focus:ring-brand-500/20 transition-all"
+                      />
+                      <div className="flex-1">
+                        <p className="text-xs font-black text-slate-900 group-hover:text-brand-600 transition-colors">{profile.name}</p>
+                        <p className="text-[10px] font-bold text-slate-400">{profile.price.toLocaleString()} GNF</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
@@ -787,6 +835,34 @@ export default function Guichets() {
                     <option key={r.id} value={r.id}>{r.full_name || r.email}</option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
+                  Forfaits Autorisés (Tous par défaut)
+                </label>
+                <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto p-2 bg-slate-50 rounded-2xl border-2 border-slate-100">
+                  {allProfiles.map(profile => (
+                    <label key={profile.id} className="flex items-center gap-3 p-2 hover:bg-white rounded-xl transition-colors cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={selectedProfiles.includes(profile.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedProfiles([...selectedProfiles, profile.id]);
+                          } else {
+                            setSelectedProfiles(selectedProfiles.filter(id => id !== profile.id));
+                          }
+                        }}
+                        className="w-5 h-5 rounded-lg border-2 border-slate-200 text-brand-500 focus:ring-brand-500/20 transition-all"
+                      />
+                      <div className="flex-1">
+                        <p className="text-xs font-black text-slate-900 group-hover:text-brand-600 transition-colors">{profile.name}</p>
+                        <p className="text-[10px] font-bold text-slate-400">{profile.price.toLocaleString()} GNF</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4">
