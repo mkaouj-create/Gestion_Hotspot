@@ -16,6 +16,7 @@ export default function GuichetSales() {
   const [recentSales, setRecentSales] = useState<any[]>([]);
   const [hourlyData, setHourlyData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -33,46 +34,83 @@ export default function GuichetSales() {
   const storedTenant = localStorage.getItem('guichet_tenant');
 
   useEffect(() => {
-    if (!token || !tenantId || storedTenant !== tenantId) {
-      navigate(`/guichet?tenant_id=${tenantId || ''}`);
-      return;
-    }
+    const init = async () => {
+      // Fallback to localStorage if tenantId is missing from URL
+      const effectiveTenantId = tenantId || storedTenant;
+      
+      if (!token || !effectiveTenantId || (tenantId && storedTenant && storedTenant !== tenantId)) {
+        console.log('Redirecting to login: missing or mismatched session');
+        navigate(`/guichet?tenant_id=${effectiveTenantId || ''}`);
+        return;
+      }
 
-    const fetchGuichetInfo = async () => {
       try {
-        const guichetDb = createGuichetClient(token!);
-        const { data, error } = await guichetDb.rpc('get_guichet_info', { p_token: token });
-        if (error) throw error;
+        setPageLoading(true);
+        const guichetDb = createGuichetClient(token);
+        const { data, error: infoError } = await guichetDb.rpc('get_guichet_info', { p_token: token });
+        
+        if (infoError) throw infoError;
+        
         if (data && data.length > 0) {
-          setGuichetInfo(data[0]);
-          fetchDailyStats(data[0].guichet_id);
-          fetchRecentSales(data[0].guichet_id);
-          fetchProfiles(data[0].allowed_profiles);
+          const info = data[0];
+          setGuichetInfo(info);
+          
+          // Parallel fetch for better performance
+          await Promise.all([
+            fetchDailyStats(info.guichet_id, effectiveTenantId),
+            fetchRecentSales(info.guichet_id, effectiveTenantId),
+            fetchProfiles(info.allowed_profiles, effectiveTenantId)
+          ]);
         } else {
-          fetchDailyStats();
-          fetchRecentSales();
-          fetchProfiles();
+          // No guichet info found, session might be invalid
+          localStorage.removeItem('guichet_token');
+          localStorage.removeItem('guichet_tenant');
+          navigate(`/guichet?tenant_id=${effectiveTenantId}`);
         }
-      } catch (err) {
-        console.error('Error fetching guichet info:', err);
-        fetchDailyStats();
-        fetchProfiles();
+      } catch (err: any) {
+        console.error('Error initializing guichet:', err);
+        setError(`Erreur de connexion: ${err.message || 'Session expirée'}`);
+        // If it's a 401/403 or token error, redirect
+        if (err.message?.includes('token') || err.code === 'PGRST301') {
+          handleLogout();
+        }
+      } finally {
+        setPageLoading(false);
       }
     };
 
-    fetchGuichetInfo();
-  }, [tenantId, token, navigate]);
+    init();
+  }, [tenantId, token, navigate, storedTenant]);
 
-  const fetchDailyStats = async (guichetId?: string) => {
+  // Auto-refresh data every 30 seconds
+  useEffect(() => {
+    if (!guichetInfo || pageLoading) return;
+
+    const interval = setInterval(() => {
+      const effectiveTenantId = tenantId || storedTenant;
+      if (effectiveTenantId) {
+        fetchDailyStats(guichetInfo.guichet_id, effectiveTenantId);
+        fetchRecentSales(guichetInfo.guichet_id, effectiveTenantId);
+        fetchProfiles(guichetInfo.allowed_profiles, effectiveTenantId);
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [guichetInfo, pageLoading, tenantId, storedTenant]);
+
+  const fetchDailyStats = async (guichetId?: string, tId?: string) => {
+    const activeTenantId = tId || tenantId || storedTenant;
+    if (!activeTenantId || !token) return;
+
     try {
-      const guichetDb = createGuichetClient(token!);
+      const guichetDb = createGuichetClient(token);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       let query = guichetDb
         .from('sales_history')
         .select('amount_paid, metadata')
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', activeTenantId)
         .gte('sold_at', today.toISOString())
         .contains('metadata', { source: 'guichet' });
 
@@ -94,9 +132,12 @@ export default function GuichetSales() {
     }
   };
 
-  const fetchRecentSales = async (guichetId?: string) => {
+  const fetchRecentSales = async (guichetId?: string, tId?: string) => {
+    const activeTenantId = tId || tenantId || storedTenant;
+    if (!activeTenantId || !token) return;
+
     try {
-      const guichetDb = createGuichetClient(token!);
+      const guichetDb = createGuichetClient(token);
       let query = guichetDb
         .from('sales_history')
         .select(`
@@ -106,7 +147,7 @@ export default function GuichetSales() {
             ticket_profiles (name)
           )
         `)
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', activeTenantId)
         .contains('metadata', { source: 'guichet' });
 
       if (guichetId) {
@@ -149,10 +190,13 @@ export default function GuichetSales() {
     }
   };
 
-  const fetchProfiles = async (allowedProfiles?: string[]) => {
+  const fetchProfiles = async (allowedProfiles?: string[], tId?: string) => {
+    const activeTenantId = tId || tenantId || storedTenant;
+    if (!activeTenantId || !token) return;
+
     try {
       setLoading(true);
-      const guichetDb = createGuichetClient(token!);
+      const guichetDb = createGuichetClient(token);
 
       let query = guichetDb
         .from('ticket_profiles')
@@ -160,7 +204,7 @@ export default function GuichetSales() {
           id, name, price,
           tickets!inner(count)
         `)
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', activeTenantId)
         .in('tickets.status', ['NEUF', 'ASSIGNE'])
         .order('price', { ascending: true });
 
@@ -202,7 +246,8 @@ export default function GuichetSales() {
   };
 
   const confirmSale = async () => {
-    if (!selectedProfile || !tenantId || !token) return;
+    const activeTenantId = tenantId || storedTenant || guichetInfo?.tenant_id;
+    if (!selectedProfile || !activeTenantId || !token) return;
 
     setSelling(true);
     setError('');
@@ -213,7 +258,7 @@ export default function GuichetSales() {
       const { data: tickets, error: fetchError } = await guichetDb
         .from('tickets')
         .select('*')
-        .eq('tenant_id', tenantId)
+        .eq('tenant_id', activeTenantId)
         .eq('profile_id', selectedProfile.id)
         .in('status', ['NEUF', 'ASSIGNE'])
         .limit(1);
@@ -241,7 +286,7 @@ export default function GuichetSales() {
         .from('sales_history')
         .insert({
           ticket_id: ticket.id,
-          tenant_id: tenantId,
+          tenant_id: activeTenantId,
           seller_id: guichetInfo?.reseller_id || null,
           amount_paid: selectedProfile.price,
           metadata: {
@@ -262,9 +307,9 @@ export default function GuichetSales() {
       setShowSuccessModal(true);
       
       // Refresh profiles and stats
-      fetchProfiles(guichetInfo?.allowed_profiles);
-      fetchDailyStats(guichetInfo?.guichet_id);
-      fetchRecentSales(guichetInfo?.guichet_id);
+      fetchProfiles(guichetInfo?.allowed_profiles, activeTenantId);
+      fetchDailyStats(guichetInfo?.guichet_id, activeTenantId);
+      fetchRecentSales(guichetInfo?.guichet_id, activeTenantId);
 
     } catch (err: any) {
       console.error('Sale error:', err);
@@ -275,9 +320,10 @@ export default function GuichetSales() {
   };
 
   const handleLogout = () => {
+    const activeTenantId = tenantId || storedTenant || guichetInfo?.tenant_id;
     localStorage.removeItem('guichet_token');
     localStorage.removeItem('guichet_tenant');
-    navigate(`/guichet?tenant_id=${tenantId}`);
+    navigate(`/guichet?tenant_id=${activeTenantId || ''}`);
   };
 
   const handlePrint = () => {
@@ -288,6 +334,16 @@ export default function GuichetSales() {
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.price.toString().includes(searchQuery)
   );
+
+  if (pageLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <div className="w-16 h-16 border-4 border-brand-500/20 border-t-brand-500 rounded-full animate-spin mb-6"></div>
+        <h2 className="text-xl font-black text-slate-900 tracking-tight">Initialisation du Guichet...</h2>
+        <p className="text-slate-500 text-sm mt-2">Veuillez patienter quelques instants.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
