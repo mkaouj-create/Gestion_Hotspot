@@ -45,6 +45,8 @@ export default function Guichets() {
   const [error, setError] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showQrModal, setShowQrModal] = useState<string | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState<{id: string, amount: number} | null>(null);
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     const init = async () => {
@@ -380,10 +382,11 @@ export default function Guichets() {
 
   const handleCollectCash = async (guichetId: string, amount: number) => {
     if (amount <= 0) return;
-    if (!window.confirm(`Confirmer la collecte de ${amount.toLocaleString()} GNF pour ce guichet ?`)) return;
+    
+    setProcessing(true);
+    setError('');
 
     try {
-      setProcessing(true);
       const { error } = await db.rpc('collect_guichet_cash', {
         p_guichet_id: guichetId,
         p_amount: amount
@@ -391,11 +394,13 @@ export default function Guichets() {
 
       if (error) throw error;
       
-      alert("Caisse collectée avec succès !");
+      setShowConfirmModal(null);
+      setSuccessMessage("Caisse collectée avec succès !");
+      setTimeout(() => setSuccessMessage(''), 3000);
       fetchAllData();
     } catch (err: any) {
       console.error('Erreur lors de la collecte:', err);
-      alert("Erreur lors de la collecte de la caisse.");
+      setError("Erreur lors de la collecte de la caisse.");
     } finally {
       setProcessing(false);
     }
@@ -430,7 +435,14 @@ export default function Guichets() {
           </div>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => {
+            setNewName('');
+            setNewPin('');
+            setSelectedReseller('');
+            setSelectedProfiles([]);
+            setError('');
+            setShowAddModal(true);
+          }}
           className="h-12 px-6 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 hover:shadow-lg hover:shadow-brand-500/30 transition-all active:scale-95 flex items-center gap-2"
         >
           <Plus className="w-5 h-5" />
@@ -541,27 +553,41 @@ export default function Guichets() {
                   <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Aujourd'hui</p>
                   <p className="text-sm font-black text-slate-900">{stats.todayRevenue.toLocaleString()} <span className="text-[10px] text-slate-500">GNF</span></p>
                 </div>
-                <div className="bg-emerald-50 rounded-2xl p-3">
-                  <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">À Collecter</p>
-                  <p className="text-sm font-black text-emerald-600">{stats.uncollectedRevenue.toLocaleString()} <span className="text-[10px] text-emerald-500">GNF</span></p>
+                <div className="bg-slate-50 rounded-2xl p-3">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Dernière Collecte</p>
+                  <p className="text-sm font-black text-slate-900">
+                    {code.last_collection_at ? format(parseISO(code.last_collection_at), 'dd/MM/yy') : 'Jamais'}
+                  </p>
                 </div>
               </div>
 
-              <div className="space-y-2 mb-6">
-                <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  <span>Total Ventes</span>
-                  <span className="text-slate-900">{stats.totalCount} tickets</span>
+              <div className="space-y-3 mb-6">
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <span>Total Ventes</span>
+                    <span className="text-slate-900">{stats.totalCount} tickets</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-brand-500 rounded-full" style={{ width: `${Math.min((stats.totalCount / 100) * 100, 100)}%` }}></div>
+                  </div>
                 </div>
-                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-brand-500 rounded-full" style={{ width: `${Math.min((stats.totalCount / 100) * 100, 100)}%` }}></div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <span>Caisse non collectée</span>
+                    <span className="text-emerald-600">{(stats.uncollectedRevenue || 0).toLocaleString()} GNF</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-emerald-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(((stats.uncollectedRevenue || 0) / 1000000) * 100, 100)}%` }}></div>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div className="p-6 pt-0 relative z-10 flex flex-col gap-2">
-              {stats.uncollectedRevenue > 0 && (
+              {(stats.uncollectedRevenue || 0) > 0 && (
                 <button
-                  onClick={() => handleCollectCash(code.id, stats.uncollectedRevenue)}
+                  onClick={() => setShowConfirmModal({ id: code.id, amount: stats.uncollectedRevenue })}
                   disabled={processing}
                   className="w-full h-12 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand-500 hover:shadow-lg hover:shadow-brand-500/30 transition-all flex items-center justify-center gap-2"
                 >
@@ -595,6 +621,7 @@ export default function Guichets() {
                 </button>
                 <button
                   onClick={() => {
+                    setError('');
                     setShowEditModal(code);
                     setNewName(code.name);
                     setSelectedReseller(code.reseller_id || '');
@@ -753,6 +780,46 @@ export default function Guichets() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => !processing && setShowConfirmModal(null)} />
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 relative z-10 shadow-2xl text-center">
+            <div className="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <TrendingUp className="w-8 h-8 text-brand-600" />
+            </div>
+            <h3 className="text-xl font-black text-slate-900 tracking-tight mb-2">Confirmer la collecte</h3>
+            <p className="text-sm text-slate-500 mb-8">
+              Voulez-vous confirmer la collecte de <span className="font-black text-slate-900">{showConfirmModal.amount.toLocaleString()} GNF</span> pour ce guichet ?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirmModal(null)}
+                disabled={processing}
+                className="flex-1 h-12 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => handleCollectCash(showConfirmModal.id, showConfirmModal.amount)}
+                disabled={processing}
+                className="flex-1 h-12 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors flex items-center justify-center"
+              >
+                {processing ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirmer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-emerald-500 text-white px-6 py-3 rounded-2xl shadow-lg shadow-emerald-500/20 font-bold flex items-center gap-2">
+            <Check className="w-5 h-5" />
+            {successMessage}
           </div>
         </div>
       )}

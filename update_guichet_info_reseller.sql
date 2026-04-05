@@ -7,7 +7,8 @@ RETURNS TABLE (
     guichet_id UUID, 
     name TEXT, 
     allowed_profiles UUID[], 
-    reseller_id UUID
+    reseller_id UUID,
+    last_collection_at TIMESTAMPTZ
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -16,7 +17,8 @@ BEGIN
         c.id, 
         c.name, 
         c.allowed_profiles, 
-        c.reseller_id
+        c.reseller_id,
+        c.last_collection_at
     FROM public.guichet_sessions s
     JOIN public.sales_access_codes c ON c.id = s.guichet_id
     WHERE s.token = p_token AND s.expires_at > NOW();

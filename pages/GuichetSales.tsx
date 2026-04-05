@@ -14,6 +14,7 @@ export default function GuichetSales() {
 
   const [profiles, setProfiles] = useState<any[]>([]);
   const [dailyStats, setDailyStats] = useState({ count: 0, revenue: 0 });
+  const [uncollectedRevenue, setUncollectedRevenue] = useState(0);
   const [recentSales, setRecentSales] = useState<any[]>([]);
   const [hourlyData, setHourlyData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +28,14 @@ export default function GuichetSales() {
   const [selling, setSelling] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastSoldTicket, setLastSoldTicket] = useState<any>(null);
-  const [guichetInfo, setGuichetInfo] = useState<{tenant_id: string, guichet_id: string, name: string, allowed_profiles?: string[], reseller_id?: string} | null>(null);
+  const [guichetInfo, setGuichetInfo] = useState<{
+    tenant_id: string, 
+    guichet_id: string, 
+    name: string, 
+    allowed_profiles?: string[], 
+    reseller_id?: string,
+    last_collection_at?: string
+  } | null>(null);
   const [showHistory, setShowHistory] = useState(false);
 
   // Initialize custom client
@@ -58,7 +66,7 @@ export default function GuichetSales() {
           
           // Parallel fetch for better performance
           await Promise.all([
-            fetchDailyStats(info.guichet_id, effectiveTenantId),
+            fetchDailyStats(info.guichet_id, effectiveTenantId, info.last_collection_at),
             fetchRecentSales(info.guichet_id, effectiveTenantId),
             fetchProfiles(info.allowed_profiles, effectiveTenantId, info.reseller_id)
           ]);
@@ -90,7 +98,7 @@ export default function GuichetSales() {
     const interval = setInterval(() => {
       const effectiveTenantId = tenantId || storedTenant;
       if (effectiveTenantId) {
-        fetchDailyStats(guichetInfo.guichet_id, effectiveTenantId);
+        fetchDailyStats(guichetInfo.guichet_id, effectiveTenantId, guichetInfo.last_collection_at);
         fetchRecentSales(guichetInfo.guichet_id, effectiveTenantId);
         fetchProfiles(guichetInfo.allowed_profiles, effectiveTenantId, guichetInfo.reseller_id);
       }
@@ -99,35 +107,53 @@ export default function GuichetSales() {
     return () => clearInterval(interval);
   }, [guichetInfo, pageLoading, tenantId, storedTenant]);
 
-  const fetchDailyStats = async (guichetId?: string, tId?: string) => {
+  const fetchDailyStats = async (guichetId?: string, tId?: string, lastCollection?: string) => {
     const activeTenantId = tId || tenantId || storedTenant;
     if (!activeTenantId || !token) return;
 
     try {
       const guichetDb = createGuichetClient(token);
+      
+      // 1. Daily Stats (Today)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      let query = guichetDb
+      const { data: todayData, error: todayError } = await guichetDb
         .from('sales_history')
         .select('amount_paid, metadata')
         .eq('tenant_id', activeTenantId)
         .gte('sold_at', today.toISOString())
         .contains('metadata', { source: 'guichet' });
 
-      const { data, error } = await query;
+      if (todayError) throw todayError;
 
-      if (error) throw error;
+      const filteredToday = guichetId 
+        ? todayData?.filter(sale => sale.metadata?.guichet_id === guichetId)
+        : todayData;
 
-      // Filter by guichet_id if available
-      const filteredData = guichetId 
-        ? data?.filter(sale => sale.metadata?.guichet_id === guichetId)
-        : data;
+      setDailyStats({ 
+        count: filteredToday?.length || 0, 
+        revenue: filteredToday?.reduce((sum, sale) => sum + (sale.amount_paid || 0), 0) || 0 
+      });
 
-      const count = filteredData?.length || 0;
-      const revenue = filteredData?.reduce((sum, sale) => sum + (sale.amount_paid || 0), 0) || 0;
+      // 2. Uncollected Revenue (Since last collection)
+      const collectionDate = lastCollection || guichetInfo?.last_collection_at || new Date(0).toISOString();
+      
+      const { data: uncollectedData, error: uncollectedError } = await guichetDb
+        .from('sales_history')
+        .select('amount_paid, metadata')
+        .eq('tenant_id', activeTenantId)
+        .gt('sold_at', collectionDate)
+        .contains('metadata', { source: 'guichet' });
 
-      setDailyStats({ count, revenue });
+      if (uncollectedError) throw uncollectedError;
+
+      const filteredUncollected = guichetId 
+        ? uncollectedData?.filter(sale => sale.metadata?.guichet_id === guichetId)
+        : uncollectedData;
+
+      setUncollectedRevenue(filteredUncollected?.reduce((sum, sale) => sum + (sale.amount_paid || 0), 0) || 0);
+
     } catch (err) {
       console.error('Error fetching daily stats:', err);
     }
@@ -401,7 +427,7 @@ export default function GuichetSales() {
               onClick={() => {
                 const effectiveTenantId = tenantId || storedTenant;
                 if (guichetInfo && effectiveTenantId) {
-                  fetchDailyStats(guichetInfo.guichet_id, effectiveTenantId);
+                  fetchDailyStats(guichetInfo.guichet_id, effectiveTenantId, guichetInfo.last_collection_at);
                   fetchRecentSales(guichetInfo.guichet_id, effectiveTenantId);
                   fetchProfiles(guichetInfo.allowed_profiles, effectiveTenantId, guichetInfo.reseller_id);
                 }
@@ -424,10 +450,19 @@ export default function GuichetSales() {
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* Daily Stats Banner */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center shrink-0">
+              <TrendingUp className="w-6 h-6 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Caisse Actuelle</p>
+              <p className="text-lg sm:text-xl font-black text-slate-900 leading-none">{(uncollectedRevenue || 0).toLocaleString()} <span className="text-xs text-slate-500">GNF</span></p>
+            </div>
+          </div>
           <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
             <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center shrink-0">
-              <TrendingUp className="w-6 h-6 text-emerald-600" />
+              <Zap className="w-6 h-6 text-emerald-600" />
             </div>
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Recette du jour</p>
@@ -444,8 +479,8 @@ export default function GuichetSales() {
             </div>
           </div>
           <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center shrink-0">
-              <Clock className="w-6 h-6 text-amber-600" />
+            <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center shrink-0">
+              <Clock className="w-6 h-6 text-slate-600" />
             </div>
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Dernière vente</p>
