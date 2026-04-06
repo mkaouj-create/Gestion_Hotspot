@@ -27,8 +27,17 @@ const Profiles: React.FC = () => {
       const { data: { user } } = await db.auth.getUser();
       if (!user) return;
       const { data: profile } = await db.from('users').select('tenant_id, tenants(currency)').eq('id', user.id).single();
-      // On récupère aussi cost_price et low_stock_threshold
-      const { data, error } = await db.from('ticket_profiles').select('*, tickets(count)').eq('tenant_id', profile?.tenant_id).order('name');
+      // On récupère les profils avec les comptes filtrés par statut (NEUF ou ASSIGNÉ)
+      const { data, error } = await db.from('ticket_profiles')
+        .select(`
+          *,
+          neuf_count:tickets(count),
+          assigne_count:tickets(count)
+        `)
+        .eq('tenant_id', profile?.tenant_id)
+        .eq('neuf_count.status', 'NEUF')
+        .eq('assigne_count.status', 'ASSIGNÉ')
+        .order('name');
       if (error) throw error;
       setProfiles(data || []);
       setCurrency((profile?.tenants as any)?.currency || 'GNF');
@@ -77,7 +86,9 @@ const Profiles: React.FC = () => {
           {loading ? (
             <div className="col-span-full py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-brand-600/20" /></div>
           ) : filteredProfiles.length > 0 ? filteredProfiles.map((p) => {
-            const stockCount = p.tickets?.[0]?.count || 0;
+            const neufCount = (p.neuf_count?.[0] as any)?.count || 0;
+            const assigneCount = (p.assigne_count?.[0] as any)?.count || 0;
+            const stockCount = neufCount + assigneCount;
             const isLowStock = stockCount <= (p.low_stock_threshold || 10);
             const margin = p.price - (p.cost_price || 0);
 
@@ -112,10 +123,22 @@ const Profiles: React.FC = () => {
                     <span className="text-emerald-600">+{margin.toLocaleString()} {currency}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">En Stock</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Stock Disponible</span>
                     <span className={`text-sm font-black ${isLowStock ? 'text-red-600' : 'text-slate-900'}`}>{stockCount} pcs</span>
                   </div>
-                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  
+                  <div className="flex gap-2 mt-2">
+                    <div className="flex-1 bg-slate-50 p-2 rounded-xl text-center">
+                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Agence</p>
+                      <p className="text-xs font-black text-indigo-600">{neufCount}</p>
+                    </div>
+                    <div className="flex-1 bg-slate-50 p-2 rounded-xl text-center">
+                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Revendeurs</p>
+                      <p className="text-xs font-black text-purple-600">{assigneCount}</p>
+                    </div>
+                  </div>
+
+                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden mt-2">
                     <div className={`h-full rounded-full transition-all duration-1000 ${isLowStock ? 'bg-red-500' : 'bg-brand-500'}`} style={{ width: `${Math.min(100, (stockCount / (p.low_stock_threshold * 5 || 50)) * 100)}%` }} />
                   </div>
                 </div>

@@ -232,7 +232,7 @@ export default function GuichetSales() {
         .from('ticket_profiles')
         .select(`
           id, name, price,
-          tickets!inner(count)
+          tickets(count)
         `)
         .eq('tenant_id', activeTenantId)
         .order('price', { ascending: true });
@@ -261,7 +261,7 @@ export default function GuichetSales() {
       const formattedProfiles = profilesData?.map(p => {
         let count = 0;
         if (Array.isArray(p.tickets)) {
-          count = p.tickets[0]?.count || 0;
+          count = (p.tickets[0] as any)?.count || 0;
         } else if (p.tickets && typeof p.tickets === 'object') {
           count = (p.tickets as any).count || 0;
         }
@@ -366,7 +366,7 @@ export default function GuichetSales() {
       setShowSuccessModal(true);
       
       // Refresh profiles and stats
-      fetchProfiles(guichetInfo?.allowed_profiles, activeTenantId);
+      fetchProfiles(guichetInfo?.allowed_profiles, activeTenantId, guichetInfo?.reseller_id);
       fetchDailyStats(guichetInfo?.guichet_id, activeTenantId);
       fetchRecentSales(guichetInfo?.guichet_id, activeTenantId);
 
