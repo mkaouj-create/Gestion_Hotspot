@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { LogOut, Zap, Search, Wifi, Clock, CheckCircle2, X, AlertCircle, TrendingUp, Ticket, History, ChevronRight, Printer, Phone, QrCode } from 'lucide-react';
+import { LogOut, Zap, Search, Wifi, Clock, CheckCircle2, X, AlertCircle, TrendingUp, Ticket, History, ChevronRight, Printer, Phone, QrCode, MessageCircle } from 'lucide-react';
 import { createGuichetClient } from '../services/db';
 import { TicketStatus } from '../types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -389,6 +389,18 @@ export default function GuichetSales() {
     window.print();
   };
 
+  const handleWhatsAppShare = () => {
+    if (!lastSoldTicket || !customerPhone) return;
+
+    const formattedPhone = customerPhone.replace(/\s+/g, '');
+    const profileName = lastSoldTicket.profile?.name || 'Forfait';
+    
+    const message = `Bienvenue sur Univers WiFi ! 🚀\n\nVoici vos accès Internet :\n🎟️ Code : ${lastSoldTicket.username}\n📦 Forfait : ${profileName}\n\nBonne navigation ! 🌐`;
+    
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
   const filteredProfiles = profiles.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.price.toString().includes(searchQuery)
@@ -734,12 +746,23 @@ export default function GuichetSales() {
             </div>
 
             <div className="flex gap-3 print:hidden">
-              <button
-                onClick={handlePrint}
-                className="flex-1 h-14 bg-slate-100 text-slate-900 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all active:scale-95"
-              >
-                Imprimer
-              </button>
+              {customerPhone ? (
+                <button
+                  onClick={handleWhatsAppShare}
+                  className="flex-1 h-14 bg-green-500 text-white rounded-2xl font-black text-sm hover:bg-green-600 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  WhatsApp
+                </button>
+              ) : (
+                <button
+                  onClick={handlePrint}
+                  className="flex-1 h-14 bg-slate-100 text-slate-900 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Printer className="w-5 h-5" />
+                  Imprimer
+                </button>
+              )}
               <button
                 onClick={() => setShowSuccessModal(false)}
                 className="flex-1 h-14 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-slate-800 transition-all active:scale-95"
