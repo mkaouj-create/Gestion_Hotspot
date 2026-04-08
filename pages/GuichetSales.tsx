@@ -156,9 +156,9 @@ export default function GuichetSales() {
       
       setNewMessage('');
       fetchMessages();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error sending message:', err);
-      alert('Erreur lors de l\'envoi du message');
+      alert('Erreur lors de l\'envoi du message: ' + (err.message || 'Erreur inconnue'));
     } finally {
       setSendingMessage(false);
     }

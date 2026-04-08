@@ -368,7 +368,7 @@ export default function Guichets() {
     try {
       const { error } = await db.from('messages').insert({
         tenant_id: showMessagesModal.tenant_id,
-        reseller_id: showMessagesModal.assigned_to,
+        reseller_id: showMessagesModal.reseller_id || null,
         guichet_id: showMessagesModal.id,
         sender_type: 'ADMIN',
         content: newMessage.trim()
@@ -378,9 +378,9 @@ export default function Guichets() {
       
       setNewMessage('');
       fetchMessages(showMessagesModal.id);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error sending message:', err);
-      alert('Erreur lors de l\'envoi du message');
+      alert('Erreur lors de l\'envoi du message: ' + (err.message || 'Erreur inconnue'));
     } finally {
       setSendingMessage(false);
     }

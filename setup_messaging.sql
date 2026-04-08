@@ -12,26 +12,36 @@ create table if not exists public.messages (
 alter table public.messages enable row level security;
 
 -- Policies for authenticated users
+drop policy if exists "Users can view their tenant messages" on public.messages;
 create policy "Users can view their tenant messages"
   on public.messages for select
   using (
-    tenant_id = (select tenant_id from public.users where id = auth.uid())
-    and (
-      (select role from public.users where id = auth.uid()) in ('ADMIN_GLOBAL', 'GESTIONNAIRE_WIFI_ZONE')
-      or
-      reseller_id = auth.uid()
+    (select role from public.users where id = auth.uid()) = 'ADMIN_GLOBAL'
+    or
+    (
+      tenant_id = (select tenant_id from public.users where id = auth.uid())
+      and (
+        (select role from public.users where id = auth.uid()) = 'GESTIONNAIRE_WIFI_ZONE'
+        or reseller_id = auth.uid()
+      )
     )
   );
 
+drop policy if exists "Users can insert messages" on public.messages;
 create policy "Users can insert messages"
   on public.messages for insert
   with check (
+    (select role from public.users where id = auth.uid()) = 'ADMIN_GLOBAL'
+    or
     tenant_id = (select tenant_id from public.users where id = auth.uid())
   );
 
+drop policy if exists "Users can update their tenant messages" on public.messages;
 create policy "Users can update their tenant messages"
   on public.messages for update
   using (
+    (select role from public.users where id = auth.uid()) = 'ADMIN_GLOBAL'
+    or
     tenant_id = (select tenant_id from public.users where id = auth.uid())
   );
 
@@ -78,7 +88,7 @@ declare
   v_reseller_id uuid;
   v_message_id uuid;
 begin
-  select g.id, g.tenant_id, g.assigned_to into v_guichet_id, v_tenant_id, v_reseller_id
+  select g.id, g.tenant_id, g.reseller_id into v_guichet_id, v_tenant_id, v_reseller_id
   from public.sales_access_codes g
   where g.access_token = p_token and g.status = 'ACTIVE';
 
