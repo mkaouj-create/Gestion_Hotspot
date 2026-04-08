@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { LogOut, Zap, Search, Wifi, Clock, CheckCircle2, X, AlertCircle, TrendingUp, Ticket, History, ChevronRight, Printer, Phone, QrCode, MessageCircle } from 'lucide-react';
+import { LogOut, Zap, Search, Wifi, Clock, CheckCircle2, X, AlertCircle, TrendingUp, Ticket, History, ChevronRight, Printer, Phone, QrCode, MessageCircle, MessageSquare, Send } from 'lucide-react';
 import { createGuichetClient } from '../services/db';
 import { TicketStatus } from '../types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -27,6 +27,11 @@ export default function GuichetSales() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [selling, setSelling] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showMessagesModal, setShowMessagesModal] = useState(false);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [lastSoldTicket, setLastSoldTicket] = useState<any>(null);
   const [guichetInfo, setGuichetInfo] = useState<{
     tenant_id: string, 
@@ -106,6 +111,66 @@ export default function GuichetSales() {
 
     return () => clearInterval(interval);
   }, [guichetInfo, pageLoading, tenantId, storedTenant]);
+
+  const fetchMessages = async () => {
+    if (!token) return;
+    try {
+      const guichetDb = createGuichetClient(token);
+      const { data, error } = await guichetDb.rpc('get_guichet_messages', { p_token: token });
+      if (error) throw error;
+      
+      if (data) {
+        setMessages(data);
+        setUnreadCount(data.filter((m: any) => !m.is_read && m.sender_type === 'ADMIN').length);
+      }
+    } catch (err) {
+      console.error('Error fetching messages:', err);
+    }
+  };
+
+  const markMessagesAsRead = async () => {
+    if (!token || unreadCount === 0) return;
+    try {
+      const guichetDb = createGuichetClient(token);
+      await guichetDb.rpc('mark_guichet_messages_read', { p_token: token });
+      setUnreadCount(0);
+      fetchMessages();
+    } catch (err) {
+      console.error('Error marking messages as read:', err);
+    }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !token || sendingMessage) return;
+
+    setSendingMessage(true);
+    try {
+      const guichetDb = createGuichetClient(token);
+      const { error } = await guichetDb.rpc('send_guichet_message', { 
+        p_token: token,
+        p_content: newMessage.trim()
+      });
+      
+      if (error) throw error;
+      
+      setNewMessage('');
+      fetchMessages();
+    } catch (err) {
+      console.error('Error sending message:', err);
+      alert('Erreur lors de l\'envoi du message');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  useEffect(() => {
+    if (guichetInfo && token) {
+      fetchMessages();
+      const interval = setInterval(fetchMessages, 30000); // Check every 30s
+      return () => clearInterval(interval);
+    }
+  }, [guichetInfo, token]);
 
   const fetchDailyStats = async (guichetId?: string, tId?: string, lastCollection?: string) => {
     const activeTenantId = tId || tenantId || storedTenant;
@@ -437,11 +502,27 @@ export default function GuichetSales() {
           <div className="flex items-center gap-2">
             <button 
               onClick={() => {
+                setShowMessagesModal(true);
+                markMessagesAsRead();
+              }}
+              className="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-brand-50 hover:text-brand-600 transition-colors relative"
+              title="Messages"
+            >
+              <MessageSquare className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            <button 
+              onClick={() => {
                 const effectiveTenantId = tenantId || storedTenant;
                 if (guichetInfo && effectiveTenantId) {
                   fetchDailyStats(guichetInfo.guichet_id, effectiveTenantId, guichetInfo.last_collection_at);
                   fetchRecentSales(guichetInfo.guichet_id, effectiveTenantId);
                   fetchProfiles(guichetInfo.allowed_profiles, effectiveTenantId, guichetInfo.reseller_id);
+                  fetchMessages();
                 }
               }}
               className="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-brand-50 hover:text-brand-600 transition-colors"
@@ -769,6 +850,75 @@ export default function GuichetSales() {
               >
                 Fermer
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Messages Modal */}
+      {showMessagesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setShowMessagesModal(false)} />
+          <div className="bg-white w-full max-w-md h-[600px] max-h-[90vh] rounded-3xl relative z-10 flex flex-col shadow-2xl animate-in zoom-in-95">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white rounded-t-3xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center">
+                  <MessageSquare className="w-5 h-5 text-brand-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900">Messages</h3>
+                  <p className="text-xs text-slate-500">Communication avec l'agence</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMessagesModal(false)}
+                className="w-10 h-10 rounded-xl bg-slate-50 text-slate-500 flex items-center justify-center hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+              {messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                  <MessageSquare className="w-12 h-12 mb-2 opacity-20" />
+                  <p className="text-sm">Aucun message</p>
+                </div>
+              ) : (
+                messages.map((msg) => {
+                  const isMe = msg.sender_type === 'RESELLER';
+                  return (
+                    <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                      <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${isMe ? 'bg-brand-600 text-white rounded-tr-sm' : 'bg-white border border-slate-200 text-slate-900 rounded-tl-sm shadow-sm'}`}>
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      </div>
+                      <span className="text-[10px] text-slate-400 mt-1 px-1">
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="p-4 bg-white border-t border-slate-100 rounded-b-3xl">
+              <form onSubmit={handleSendMessage} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Écrivez votre message..."
+                  className="flex-1 h-12 px-4 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500"
+                  disabled={sendingMessage}
+                />
+                <button
+                  type="submit"
+                  disabled={!newMessage.trim() || sendingMessage}
+                  className="w-12 h-12 bg-brand-600 text-white rounded-xl flex items-center justify-center hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </form>
             </div>
           </div>
         </div>

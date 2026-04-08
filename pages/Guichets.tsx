@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Store, Key, Trash2, Plus, Copy, Check, AlertCircle, Loader2, TrendingUp, Ticket, QrCode, X, Calendar, ChevronRight, History } from 'lucide-react';
+import { Store, Key, Trash2, Plus, Copy, Check, AlertCircle, Loader2, TrendingUp, Ticket, QrCode, X, Calendar, ChevronRight, History, MessageSquare, Send } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { db } from '../services/db';
 import { UserRole } from '../types';
@@ -29,6 +29,10 @@ export default function Guichets() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState<any>(null);
   const [showHistoryModal, setShowHistoryModal] = useState<string | null>(null);
+  const [showMessagesModal, setShowMessagesModal] = useState<any>(null); // guichet object
+  const [messages, setMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
   const [collectionHistory, setCollectionHistory] = useState<any[]>([]);
   
   const [newName, setNewName] = useState('');
@@ -328,6 +332,72 @@ export default function Guichets() {
     }
   };
 
+  const fetchMessages = async (guichetId: string) => {
+    try {
+      const { data, error } = await db
+        .from('messages')
+        .select('*')
+        .eq('guichet_id', guichetId)
+        .order('created_at', { ascending: true });
+        
+      if (error) throw error;
+      setMessages(data || []);
+    } catch (err) {
+      console.error('Error fetching messages:', err);
+    }
+  };
+
+  const markMessagesAsRead = async (guichetId: string) => {
+    try {
+      await db
+        .from('messages')
+        .update({ is_read: true })
+        .eq('guichet_id', guichetId)
+        .eq('sender_type', 'RESELLER')
+        .eq('is_read', false);
+    } catch (err) {
+      console.error('Error marking messages as read:', err);
+    }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !showMessagesModal || sendingMessage) return;
+
+    setSendingMessage(true);
+    try {
+      const { error } = await db.from('messages').insert({
+        tenant_id: showMessagesModal.tenant_id,
+        reseller_id: showMessagesModal.assigned_to,
+        guichet_id: showMessagesModal.id,
+        sender_type: 'ADMIN',
+        content: newMessage.trim()
+      });
+      
+      if (error) throw error;
+      
+      setNewMessage('');
+      fetchMessages(showMessagesModal.id);
+    } catch (err) {
+      console.error('Error sending message:', err);
+      alert('Erreur lors de l\'envoi du message');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  useEffect(() => {
+    let interval: any;
+    if (showMessagesModal) {
+      fetchMessages(showMessagesModal.id);
+      markMessagesAsRead(showMessagesModal.id);
+      interval = setInterval(() => {
+        fetchMessages(showMessagesModal.id);
+      }, 30000);
+    }
+    return () => clearInterval(interval);
+  }, [showMessagesModal]);
+
   const handleDelete = async (id: string, tenantId: string) => {
     if (!window.confirm("Êtes-vous sûr de vouloir supprimer ce guichet ? Les sessions actives seront révoquées.")) return;
     
@@ -618,6 +688,14 @@ export default function Guichets() {
                   title="Historique des versements"
                 >
                   <History className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setShowMessagesModal(code)}
+                  className="w-12 h-12 bg-slate-50 text-slate-600 rounded-2xl flex items-center justify-center hover:bg-brand-50 hover:text-brand-600 transition-colors relative"
+                  title="Messages"
+                >
+                  <MessageSquare className="w-5 h-5" />
+                  {/* Unread count could be added here if we fetched it per guichet */}
                 </button>
                 <button
                   onClick={() => {
@@ -1003,6 +1081,75 @@ export default function Guichets() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Messages Modal */}
+      {showMessagesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setShowMessagesModal(null)} />
+          <div className="bg-white w-full max-w-md h-[600px] max-h-[90vh] rounded-3xl relative z-10 flex flex-col shadow-2xl animate-in zoom-in-95">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white rounded-t-3xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center">
+                  <MessageSquare className="w-5 h-5 text-brand-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900">Messages</h3>
+                  <p className="text-xs text-slate-500">Guichet : {showMessagesModal.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMessagesModal(null)}
+                className="w-10 h-10 rounded-xl bg-slate-50 text-slate-500 flex items-center justify-center hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+              {messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                  <MessageSquare className="w-12 h-12 mb-2 opacity-20" />
+                  <p className="text-sm">Aucun message</p>
+                </div>
+              ) : (
+                messages.map((msg) => {
+                  const isMe = msg.sender_type === 'ADMIN';
+                  return (
+                    <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                      <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${isMe ? 'bg-brand-600 text-white rounded-tr-sm' : 'bg-white border border-slate-200 text-slate-900 rounded-tl-sm shadow-sm'}`}>
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      </div>
+                      <span className="text-[10px] text-slate-400 mt-1 px-1">
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="p-4 bg-white border-t border-slate-100 rounded-b-3xl">
+              <form onSubmit={handleSendMessage} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Écrivez votre message..."
+                  className="flex-1 h-12 px-4 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500"
+                  disabled={sendingMessage}
+                />
+                <button
+                  type="submit"
+                  disabled={!newMessage.trim() || sendingMessage}
+                  className="w-12 h-12 bg-brand-600 text-white rounded-xl flex items-center justify-center hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </form>
             </div>
           </div>
         </div>
