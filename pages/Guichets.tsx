@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Store, Key, Trash2, Plus, Copy, Check, AlertCircle, Loader2, TrendingUp, Ticket, QrCode, X, Calendar, ChevronRight, History, MessageSquare, Send } from 'lucide-react';
+import { Store, Key, Trash2, Plus, Copy, Check, AlertCircle, Loader2, TrendingUp, Ticket, QrCode, X, Calendar, ChevronRight, History, MessageSquare, Send, CheckCheck } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { db } from '../services/db';
 import { UserRole } from '../types';
@@ -1123,9 +1123,18 @@ export default function Guichets() {
                       <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${isMe ? 'bg-brand-600 text-white rounded-tr-sm' : 'bg-white border border-slate-200 text-slate-900 rounded-tl-sm shadow-sm'}`}>
                         <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                       </div>
-                      <span className="text-[10px] text-slate-400 mt-1 px-1">
-                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                      <div className="flex items-center gap-1 mt-1 px-1">
+                        <span className="text-[10px] text-slate-400">
+                          {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        {isMe && (
+                          msg.is_read ? (
+                            <CheckCheck className="w-3.5 h-3.5 text-blue-500" />
+                          ) : (
+                            <Check className="w-3.5 h-3.5 text-slate-400" />
+                          )
+                        )}
+                      </div>
                     </div>
                   );
                 })
