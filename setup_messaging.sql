@@ -61,9 +61,9 @@ declare
   v_guichet_id uuid;
   v_tenant_id uuid;
 begin
-  select g.id, g.tenant_id into v_guichet_id, v_tenant_id
-  from public.sales_access_codes g
-  where g.access_token = p_token and g.status = 'ACTIVE';
+  select s.guichet_id, s.tenant_id into v_guichet_id, v_tenant_id
+  from public.guichet_sessions s
+  where s.token = p_token and s.expires_at > now();
 
   if v_guichet_id is null then
     raise exception 'Invalid or inactive token';
@@ -88,9 +88,10 @@ declare
   v_reseller_id uuid;
   v_message_id uuid;
 begin
-  select g.id, g.tenant_id, g.reseller_id into v_guichet_id, v_tenant_id, v_reseller_id
-  from public.sales_access_codes g
-  where g.access_token = p_token and g.status = 'ACTIVE';
+  select s.guichet_id, s.tenant_id, g.reseller_id into v_guichet_id, v_tenant_id, v_reseller_id
+  from public.guichet_sessions s
+  join public.sales_access_codes g on g.id = s.guichet_id
+  where s.token = p_token and s.expires_at > now();
 
   if v_guichet_id is null then
     raise exception 'Invalid or inactive token';
@@ -112,9 +113,9 @@ as $$
 declare
   v_guichet_id uuid;
 begin
-  select g.id into v_guichet_id
-  from public.sales_access_codes g
-  where g.access_token = p_token and g.status = 'ACTIVE';
+  select s.guichet_id into v_guichet_id
+  from public.guichet_sessions s
+  where s.token = p_token and s.expires_at > now();
 
   if v_guichet_id is null then
     raise exception 'Invalid or inactive token';
