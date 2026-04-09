@@ -46,7 +46,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   ];
 
   const filteredItems = navItems.filter(item => {
-    if (userInfo.role === UserRole.ADMIN_GLOBAL) return !['/sales', '/profiles', '/import', '/zones', '/accounting', '/guichets'].includes(item.path);
+    if (userInfo.role === UserRole.ADMIN_GLOBAL) return !['/sales', '/profiles', '/import', '/zones', '/accounting'].includes(item.path);
     if (userInfo.role === UserRole.GESTIONNAIRE_WIFI_ZONE || userInfo.role === UserRole.ADMIN) return !['/agencies', '/subscriptions'].includes(item.path);
     if (userInfo.role === UserRole.REVENDEUR) return ['/dashboard', '/sales', '/accounting', '/history', '/stock', '/tutorials'].includes(item.path);
     return ['/dashboard', '/sales', '/stock', '/history', '/tutorials'].includes(item.path);
