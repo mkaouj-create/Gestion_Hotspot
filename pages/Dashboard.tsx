@@ -114,6 +114,9 @@ const Dashboard: React.FC = () => {
       const weeklyMap: Record<string, number> = {};
       last7Days.forEach(day => weeklyMap[day] = 0);
 
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+
       let guichetSales = 0;
       let directSales = 0;
 
@@ -128,6 +131,16 @@ const Dashboard: React.FC = () => {
           directSales += Number(sale.amount_paid);
         }
       });
+
+      const revenueToday = weeklyMap[todayStr] || 0;
+      const revenueYesterday = weeklyMap[yesterdayStr] || 0;
+      
+      let dailyGrowth = 0;
+      if (revenueYesterday > 0) {
+        dailyGrowth = ((revenueToday - revenueYesterday) / revenueYesterday) * 100;
+      } else if (revenueToday > 0) {
+        dailyGrowth = 100;
+      }
 
       setWeeklyData(last7Days.map(date => ({
         date: format(parseISO(date), 'dd MMM', { locale: fr }),
@@ -154,7 +167,7 @@ const Dashboard: React.FC = () => {
         pendingAgencies: isAdminGlobal ? (results[8]?.count || 0) : 0,
         totalAgencies: isAdminGlobal ? (results[9]?.count || 0) : 0,
         balance: profile.balance || 0,
-        dailyGrowth: 0,
+        dailyGrowth: dailyGrowth,
         pendingPayments: pendingAmt,
         margin: totalRevenue - totalCost
       });
@@ -288,6 +301,8 @@ const Dashboard: React.FC = () => {
           icon={<TrendingUp />}
           color="text-indigo-600"
           bg="bg-indigo-50"
+          trend={stats.dailyGrowth}
+          trendLabel="vs hier"
         />
 
         <div className="bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-slate-100 shadow-sm flex flex-col justify-between group hover:shadow-xl transition-all col-span-2 sm:col-span-1">
@@ -497,13 +512,21 @@ const Dashboard: React.FC = () => {
   );
 };
 
-const KpiCard = ({ label, value, unit, icon, color, bg, onClick }: any) => (
+const KpiCard = ({ label, value, unit, icon, color, bg, onClick, trend, trendLabel }: any) => (
   <div 
     onClick={onClick} 
     className={`bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 group ${onClick ? 'cursor-pointer' : ''}`}
   >
-    <div className={`w-10 h-10 md:w-14 md:h-14 ${bg} ${color} rounded-xl md:rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform mb-4 md:mb-6`}>
-      {React.cloneElement(icon, { className: "w-5 h-5 md:w-7 md:h-7" })}
+    <div className="flex justify-between items-start mb-4 md:mb-6">
+      <div className={`w-10 h-10 md:w-14 md:h-14 ${bg} ${color} rounded-xl md:rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform`}>
+        {React.cloneElement(icon, { className: "w-5 h-5 md:w-7 md:h-7" })}
+      </div>
+      {trend !== undefined && (
+        <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold ${trend >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+          {trend >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+          {Math.abs(trend).toFixed(1)}% {trendLabel && <span className="hidden sm:inline opacity-70 ml-0.5">{trendLabel}</span>}
+        </div>
+      )}
     </div>
     <div>
       <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate">{label}</p>
