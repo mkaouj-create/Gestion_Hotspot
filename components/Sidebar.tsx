@@ -1,11 +1,63 @@
 
 import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ShoppingCart, CloudUpload, Ticket, History, Users, LogOut, Wallet, Settings, Building2, Zap, ChevronLeft, MapPin, Tag, X, Banknote, BookOpen, Store } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, CloudUpload, Ticket, History, Users, LogOut, Wallet, Settings, Building2, Zap, ChevronLeft, MapPin, Tag, X, Banknote, BookOpen, Store, Download } from 'lucide-react';
 import { NavItem, UserRole } from '../types';
 import { db } from '../services/db';
 
 interface SidebarProps { isOpen: boolean; setIsOpen: (isOpen: boolean) => void; }
+
+const InstallPWA = () => {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  useEffect(() => {
+    // Check if already installed
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsInstalled(true);
+    }
+    
+    // Listen for beforeinstallprompt
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    try {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+        setIsInstalled(true);
+      }
+    } catch (err) {
+      console.error('Installation failed', err);
+    }
+  };
+
+  if (!deferredPrompt || isInstalled) return null;
+
+  return (
+    <div className="mx-4 mb-4">
+      <button 
+        onClick={handleInstallClick}
+        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-brand-600 to-indigo-600 text-white px-4 py-3 rounded-xl font-bold text-sm shadow-md shadow-brand-500/20 hover:shadow-lg hover:shadow-brand-500/30 transition-all hover:-translate-y-0.5"
+      >
+        <Download className="w-4 h-4" />
+        Installer l'App (PWA)
+      </button>
+    </div>
+  );
+};
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const navigate = useNavigate();
@@ -91,6 +143,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             </NavLink>
           ))}
         </nav>
+
+        <div className="mt-auto shrink-0 pt-4">
+          <InstallPWA />
+        </div>
 
         <div className="p-4 border-t border-slate-100 bg-slate-50/50 shrink-0">
            <div className="flex items-center gap-3 px-2">
